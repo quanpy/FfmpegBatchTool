@@ -51,8 +51,10 @@ public class FFmpegBatchProcessor extends JFrame {
     // 各页面的输入字段
     private JTextField compressParamsField;
     private JTextField subtitleDelogoParamsField;
+    private JTextField subtitleCompressParamsField;
     private JTextField trailerDelogoParamsField;
     private JTextField trailerDurationField;
+    private JTextField trailerCompressParamsField;
     
     // 页面容器
     private JPanel cardPanel;
@@ -92,17 +94,20 @@ public class FFmpegBatchProcessor extends JFrame {
         logArea = new JTextArea();
         logArea.setEditable(false);
         
-        // 初始化各页面的输入字段
+        // 初始化转小页面的输入字段
         compressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
         
+        // 初始化去小字页面的输入字段
         subtitleDelogoParamsField = new JTextField(20);
         subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
+        subtitleCompressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
         
+        // 初始化去未完待续页面的输入字段
         trailerDelogoParamsField = new JTextField(20);
         trailerDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
-        
         trailerDurationField = new JTextField("2.2", 20);
         trailerDurationField.setToolTipText("视频结尾处理时长（秒），如2.2表示处理视频最后2.2秒");
+        trailerCompressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
         
         // 初始化页面布局管理器
         cardLayout = new CardLayout();
@@ -221,7 +226,13 @@ public class FFmpegBatchProcessor extends JFrame {
     }
     
     private JPanel createRemoveSubtitlePanel() {
-        JPanel panel = new JPanel(new BorderLayout());
+        JPanel panel = new JPanel(new GridLayout(2, 1, 0, 5));
+        
+        // 压缩参数面板（移到上面）
+        JPanel compressPanel = new JPanel(new BorderLayout(5, 0));
+        compressPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        compressPanel.add(new JLabel("压缩参数:"), BorderLayout.WEST);
+        compressPanel.add(subtitleCompressParamsField, BorderLayout.CENTER);
         
         // 去水印参数面板
         JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
@@ -229,12 +240,19 @@ public class FFmpegBatchProcessor extends JFrame {
         delogoPanel.add(new JLabel("去小字参数(x,y,w,h):"), BorderLayout.WEST);
         delogoPanel.add(subtitleDelogoParamsField, BorderLayout.CENTER);
         
-        panel.add(delogoPanel, BorderLayout.NORTH);
+        panel.add(compressPanel);
+        panel.add(delogoPanel);
         return panel;
     }
     
     private JPanel createRemoveTrailerPanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 1, 0, 5));
+        JPanel panel = new JPanel(new GridLayout(3, 1, 0, 5));
+        
+        // 压缩参数面板（移到上面）
+        JPanel compressPanel = new JPanel(new BorderLayout(5, 0));
+        compressPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        compressPanel.add(new JLabel("压缩参数:"), BorderLayout.WEST);
+        compressPanel.add(trailerCompressParamsField, BorderLayout.CENTER);
         
         // 去水印参数面板
         JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
@@ -248,6 +266,7 @@ public class FFmpegBatchProcessor extends JFrame {
         durationPanel.add(new JLabel("结尾处理时长(秒):"), BorderLayout.WEST);
         durationPanel.add(trailerDurationField, BorderLayout.CENTER);
         
+        panel.add(compressPanel);
         panel.add(delogoPanel);
         panel.add(durationPanel);
         return panel;
@@ -331,6 +350,7 @@ public class FFmpegBatchProcessor extends JFrame {
     
     private void processRemoveSubtitle(String folderPath) {
         String delogoParams = subtitleDelogoParamsField.getText().trim();
+        String ffmpegCommand = subtitleCompressParamsField.getText().trim();
         
         // 验证去水印参数格式
         if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
@@ -351,7 +371,7 @@ public class FFmpegBatchProcessor extends JFrame {
         // 在后台线程中执行处理
         new Thread(() -> {
             try {
-                processFiles(folderPath, "-c:v libx264 -b:v 8000k -crf 23 -y", delogoParams, "", "s");
+                processFiles(folderPath, ffmpegCommand, delogoParams, "", "s");
             } finally {
                 SwingUtilities.invokeLater(() -> {
                     processButton.setEnabled(true);
@@ -365,6 +385,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private void processRemoveTrailer(String folderPath) {
         String delogoParams = trailerDelogoParamsField.getText().trim();
         String lastDuration = trailerDurationField.getText().trim();
+        String ffmpegCommand = trailerCompressParamsField.getText().trim();
         
         // 验证去水印参数格式
         if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
@@ -396,7 +417,7 @@ public class FFmpegBatchProcessor extends JFrame {
         // 在后台线程中执行处理
         new Thread(() -> {
             try {
-                processFiles(folderPath, "-c:v libx264 -b:v 8000k -crf 23 -y", delogoParams, lastDuration, "w");
+                processFiles(folderPath, ffmpegCommand, delogoParams, lastDuration, "w");
             } finally {
                 SwingUtilities.invokeLater(() -> {
                     processButton.setEnabled(true);
