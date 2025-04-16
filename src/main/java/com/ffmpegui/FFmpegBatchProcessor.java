@@ -1,8 +1,10 @@
 package com.ffmpegui;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -10,8 +12,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
+import java.util.Map;
 
 public class FFmpegBatchProcessor extends JFrame {
+    // 主题颜色
+    private static final Color PRIMARY_COLOR = new Color(48, 63, 159); // 深蓝
+    private static final Color SECONDARY_COLOR = new Color(63, 81, 181); // 蓝紫
+    private static final Color ACCENT_COLOR = new Color(197, 202, 233); // 淡蓝
+    private static final Color BACKGROUND_COLOR = new Color(237, 240, 252); // 浅蓝背景
+    private static final Color BUTTON_HOVER_COLOR = new Color(92, 107, 192); // 悬停颜色
+    private static final Color TEXT_COLOR = new Color(33, 33, 33); // 深灰
+    private static final Color HIGHLIGHT_COLOR = new Color(255, 87, 34); // 橙色高亮
+    
+    // 字体
+    private static final Font TITLE_FONT = new Font("微软雅黑", Font.BOLD, 14);
+    private static final Font NORMAL_FONT = new Font("微软雅黑", Font.PLAIN, 12);
+    private static final Font BUTTON_FONT = new Font("微软雅黑", Font.BOLD, 12);
+    
     // 共享组件
     private JTextField folderPathField;
     private JButton browseButton;
@@ -79,8 +96,20 @@ public class FFmpegBatchProcessor extends JFrame {
         // 设置窗口标题和关闭操作
         super("FFmpeg多功能批处理工具 @ocean.quan@wiitrans.com");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(800, 620);
+        setSize(850, 650);
         setLocationRelativeTo(null);
+        
+        // 设置窗口图标
+        try {
+            ImageIcon icon = new ImageIcon(getClass().getResource("/icon.png"));
+            if (icon.getImageLoadStatus() == MediaTracker.COMPLETE) {
+                setIconImage(icon.getImage());
+            } else {
+                System.out.println("提示：未找到图标文件，请在 src/main/resources 目录下添加 icon.png 文件");
+            }
+        } catch (Exception e) {
+            System.out.println("加载图标时出错: " + e.getMessage());
+        }
 
         // 创建界面组件
         initComponents();
@@ -96,37 +125,129 @@ public class FFmpegBatchProcessor extends JFrame {
         
         // 默认显示第一个页面
         updateCurrentPage(PageType.COMPRESS);
+        
+        // 设置窗口背景颜色
+        getContentPane().setBackground(BACKGROUND_COLOR);
     }
 
     private void initComponents() {
         // 初始化共享组件
-        folderPathField = new JTextField(20);
-        browseButton = new JButton("浏览...");
-        processButton = new JButton("开始处理");
+        folderPathField = createStyledTextField();
+        browseButton = createStyledButton("浏览...");
+        processButton = createStyledButton("开始处理");
+        processButton.setBackground(PRIMARY_COLOR);
+        processButton.setForeground(Color.WHITE);
+        
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
+        progressBar.setForeground(PRIMARY_COLOR);
+        progressBar.setBackground(ACCENT_COLOR);
+        
         statusLabel = new JLabel("就绪");
+        statusLabel.setFont(NORMAL_FONT);
+        statusLabel.setForeground(TEXT_COLOR);
+        
+        // 使用支持中文显示良好的字体
+        Font logFont = new Font("Microsoft YaHei Mono", Font.PLAIN, 12);
+        if (isFontAvailable("Microsoft YaHei Mono")) {
+            logFont = new Font("Microsoft YaHei Mono", Font.PLAIN, 12);
+        } else if (isFontAvailable("微软雅黑")) {
+            logFont = new Font("微软雅黑", Font.PLAIN, 12);
+        } else if (isFontAvailable("宋体")) {
+            logFont = new Font("宋体", Font.PLAIN, 12);
+        } else {
+            logFont = new Font(Font.MONOSPACED, Font.PLAIN, 12);
+        }
+        
         logArea = new JTextArea();
         logArea.setEditable(false);
+        logArea.setFont(logFont);
+        logArea.setBackground(new Color(250, 250, 250));
+        logArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         
         // 初始化转小页面的输入字段
-        compressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
+        compressParamsField = createStyledTextField();
+        compressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
         
         // 初始化去小字页面的输入字段
-        subtitleDelogoParamsField = new JTextField(20);
+        subtitleDelogoParamsField = createStyledTextField();
         subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）注意：涂抹边界不要紧贴视频边界");
-        subtitleCompressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
+        subtitleCompressParamsField = createStyledTextField();
+        subtitleCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
         
         // 初始化去未完待续页面的输入字段
-        trailerDelogoParamsField = new JTextField(20);
+        trailerDelogoParamsField = createStyledTextField();
         trailerDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
-        trailerDurationField = new JTextField("2.2", 20);
+        trailerDurationField = createStyledTextField();
+        trailerDurationField.setText("2.2");
         trailerDurationField.setToolTipText("视频结尾处理时长（秒），如2.2表示处理视频最后2.2秒");
-        trailerCompressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
+        trailerCompressParamsField = createStyledTextField();
+        trailerCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
         
         // 初始化页面布局管理器
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
+        cardPanel.setOpaque(false);
+    }
+    
+    // 创建风格化的文本框
+    private JTextField createStyledTextField() {
+        JTextField field = new JTextField(20);
+        field.setFont(NORMAL_FONT);
+        field.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(ACCENT_COLOR, 1, true),
+            BorderFactory.createEmptyBorder(5, 8, 5, 8)
+        ));
+        return field;
+    }
+    
+    // 创建风格化的按钮
+    private JButton createStyledButton(String text) {
+        JButton button = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                if (getModel().isPressed()) {
+                    g2.setColor(SECONDARY_COLOR.darker());
+                } else if (getModel().isRollover()) {
+                    g2.setColor(BUTTON_HOVER_COLOR);
+                } else {
+                    g2.setColor(getBackground());
+                }
+                
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                
+                g2.setColor(getForeground());
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(getText())) / 2;
+                int y = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), x, y);
+                
+                g2.dispose();
+            }
+        };
+        
+        button.setFont(BUTTON_FONT);
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setOpaque(false);
+        button.setBackground(SECONDARY_COLOR);
+        button.setForeground(ACCENT_COLOR);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setMargin(new Insets(8, 15, 8, 15));
+        
+        return button;
+    }
+    
+    // 创建风格化的标签
+    private JLabel createStyledLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(NORMAL_FONT);
+        label.setForeground(TEXT_COLOR);
+        return label;
     }
     
     private void initLogUpdateTimer() {
@@ -145,7 +266,15 @@ public class FFmpegBatchProcessor extends JFrame {
             
             final String logText = sb.toString();
             SwingUtilities.invokeLater(() -> {
-                logArea.append(logText);
+                // 将文本转换为UTF-8编码处理，避免显示乱码
+                try {
+                    String normalizedText = new String(logText.getBytes("UTF-8"), "UTF-8");
+                    logArea.append(normalizedText);
+                } catch (Exception ex) {
+                    // 如果转换失败，直接添加原始文本
+                    logArea.append(logText);
+                }
+                
                 // 自动滚动到底部
                 logArea.setCaretPosition(logArea.getDocument().getLength());
             });
@@ -154,21 +283,55 @@ public class FFmpegBatchProcessor extends JFrame {
     
     // 添加日志消息到队列
     private void addLogMessage(String message) {
-        messageQueue.add(message);
+        // 确保日志消息使用UTF-8编码
+        try {
+            String normalizedMessage = new String(message.getBytes("UTF-8"), "UTF-8");
+            messageQueue.add(normalizedMessage);
+        } catch (Exception e) {
+            // 如果转换失败，直接添加原始消息
+            messageQueue.add(message);
+        }
     }
 
     private void layoutComponents() {
+        // 创建主面板，使用边框布局
+        JPanel mainPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                
+                // 创建渐变背景
+                GradientPaint gp = new GradientPaint(
+                    0, 0, BACKGROUND_COLOR, 
+                    0, getHeight(), new Color(220, 225, 245)
+                );
+                g2d.setPaint(gp);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        mainPanel.setOpaque(false);
+        mainPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
+        
         // 创建顶部面板 - 文件夹路径
-        JPanel topPanel = new JPanel(new BorderLayout(5, 0));
-        topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
-        topPanel.add(new JLabel("文件夹路径:"), BorderLayout.WEST);
+        JPanel topPanel = new JPanel(new BorderLayout(10, 0));
+        topPanel.setOpaque(false);
+        topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 15, 10));
+        
+        JLabel pathLabel = createStyledLabel("文件夹路径:");
+        topPanel.add(pathLabel, BorderLayout.WEST);
         topPanel.add(folderPathField, BorderLayout.CENTER);
         topPanel.add(browseButton, BorderLayout.EAST);
         
         // 创建切换页面的按钮面板
-        JPanel tabButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel tabButtonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        tabButtonPanel.setOpaque(false);
+        tabButtonPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 15, 0));
+        
         for (PageType pageType : PageType.values()) {
-            JButton pageButton = new JButton(pageType.getTitle());
+            JButton pageButton = createStyledButton(pageType.getTitle());
+            pageButton.setMargin(new Insets(8, 25, 8, 25));
             pageButton.addActionListener(e -> updateCurrentPage(pageType));
             tabButtonPanel.add(pageButton);
         }
@@ -189,105 +352,203 @@ public class FFmpegBatchProcessor extends JFrame {
         
         // 创建控制面板（包含按钮和状态）
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setOpaque(false);
         buttonPanel.add(processButton);
         
         // 创建状态面板
-        JPanel statusPanel = new JPanel(new BorderLayout(5, 0));
-        statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 10, 10));
+        JPanel statusPanel = new JPanel(new BorderLayout(10, 0));
+        statusPanel.setOpaque(false);
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         statusPanel.add(statusLabel, BorderLayout.WEST);
         statusPanel.add(progressBar, BorderLayout.CENTER);
         
         // 创建底部面板（合并按钮和状态面板）
         JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.setOpaque(false);
         bottomPanel.add(buttonPanel, BorderLayout.NORTH);
         bottomPanel.add(statusPanel, BorderLayout.SOUTH);
         
-        // 创建日志区域
+        // 创建日志区域带标题
+        JPanel logPanel = new JPanel(new BorderLayout());
+        logPanel.setOpaque(false);
+        
+        JLabel logLabel = new JLabel("处理日志");
+        logLabel.setFont(TITLE_FONT);
+        logLabel.setForeground(PRIMARY_COLOR);
+        logLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        
         JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(ACCENT_COLOR, 1, true),
+            BorderFactory.createEmptyBorder(0, 0, 0, 0)
+        ));
+        
+        logPanel.add(logLabel, BorderLayout.NORTH);
+        logPanel.add(scrollPane, BorderLayout.CENTER);
+        logPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         // 创建功能页面顶部面板（包含标签页按钮和卡片面板）
         JPanel functionTopPanel = new JPanel(new BorderLayout());
+        functionTopPanel.setOpaque(false);
         functionTopPanel.add(tabButtonPanel, BorderLayout.NORTH);
         functionTopPanel.add(cardPanel, BorderLayout.CENTER);
         
-        // 将所有组件添加到窗口
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        // 将所有组件添加到主面板
         mainPanel.add(topPanel, BorderLayout.NORTH);
         mainPanel.add(functionTopPanel, BorderLayout.CENTER);
         
+        // 将主面板和日志面板添加到内容窗格
         getContentPane().setLayout(new BorderLayout());
         getContentPane().add(mainPanel, BorderLayout.NORTH);
-        getContentPane().add(scrollPane, BorderLayout.CENTER);
+        getContentPane().add(logPanel, BorderLayout.CENTER);
         getContentPane().add(bottomPanel, BorderLayout.SOUTH);
     }
     
     private JPanel createCompressPanel() {
         JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
         
         // 命令面板 - FFmpeg命令
-        JPanel commandPanel = new JPanel(new BorderLayout(5, 0));
-        commandPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        commandPanel.add(new JLabel("压缩参数:"), BorderLayout.WEST);
+        JPanel commandPanel = new JPanel(new BorderLayout(10, 0));
+        commandPanel.setOpaque(false);
+        commandPanel.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
+        commandPanel.add(createStyledLabel("压缩参数:"), BorderLayout.WEST);
         commandPanel.add(compressParamsField, BorderLayout.CENTER);
         
+        // 添加说明面板
+        JPanel descPanel = new JPanel(new BorderLayout());
+        descPanel.setOpaque(false);
+        descPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JLabel descLabel = new JLabel("此功能用于压缩视频文件，处理后的文件会在原文件名后添加\"_c\"后缀");
+        descLabel.setFont(NORMAL_FONT);
+        descLabel.setForeground(new Color(90, 90, 90));
+        descPanel.add(descLabel, BorderLayout.CENTER);
+        
         panel.add(commandPanel, BorderLayout.NORTH);
+        panel.add(descPanel, BorderLayout.CENTER);
         return panel;
     }
     
     private JPanel createRemoveSubtitlePanel() {
-        JPanel panel = new JPanel(new GridLayout(3, 1, 0, 5));
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
         
-        // 压缩参数面板（移到上面）
-        JPanel compressPanel = new JPanel(new BorderLayout(5, 0));
-        compressPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        compressPanel.add(new JLabel("压缩参数:"), BorderLayout.WEST);
+        JPanel inputsPanel = new JPanel(new GridLayout(2, 1, 0, 10));
+        inputsPanel.setOpaque(false);
+        inputsPanel.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
+        
+        // 压缩参数面板
+        JPanel compressPanel = new JPanel(new BorderLayout(10, 0));
+        compressPanel.setOpaque(false);
+        compressPanel.add(createStyledLabel("压缩参数:"), BorderLayout.WEST);
         compressPanel.add(subtitleCompressParamsField, BorderLayout.CENTER);
         
         // 去水印参数面板
-        JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
-        delogoPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        delogoPanel.add(new JLabel("去小字参数(x,y,w,h):"), BorderLayout.WEST);
+        JPanel delogoPanel = new JPanel(new BorderLayout(10, 0));
+        delogoPanel.setOpaque(false);
+        delogoPanel.add(createStyledLabel("去小字参数(x,y,w,h):"), BorderLayout.WEST);
         delogoPanel.add(subtitleDelogoParamsField, BorderLayout.CENTER);
+        
+        inputsPanel.add(compressPanel);
+        inputsPanel.add(delogoPanel);
         
         // 提示面板
         JPanel tipPanel = new JPanel(new BorderLayout(5, 0));
-        tipPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        tipPanel.setOpaque(false);
+        tipPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, ACCENT_COLOR),
+            BorderFactory.createEmptyBorder(15, 10, 10, 10)
+        ));
+        
         JLabel tipLabel = new JLabel("提示：涂抹边界不要紧贴视频边界，留出一点点距离，否则会报错！");
+        tipLabel.setFont(NORMAL_FONT);
         tipLabel.setForeground(new Color(32, 61, 135));
+        tipLabel.setIcon(createInfoIcon());
         tipPanel.add(tipLabel, BorderLayout.CENTER);
         
-        panel.add(compressPanel);
-        panel.add(delogoPanel);
-        panel.add(tipPanel);
+        // 添加说明面板
+        JPanel descPanel = new JPanel(new BorderLayout());
+        descPanel.setOpaque(false);
+        descPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
+        
+        JLabel descLabel = new JLabel("此功能用于去除视频中的小型水印，处理后的文件会添加\"_s\"后缀");
+        descLabel.setFont(NORMAL_FONT);
+        descLabel.setForeground(new Color(90, 90, 90));
+        descPanel.add(descLabel, BorderLayout.CENTER);
+        
+        panel.add(inputsPanel, BorderLayout.NORTH);
+        panel.add(descPanel, BorderLayout.CENTER);
+        panel.add(tipPanel, BorderLayout.SOUTH);
+        
         return panel;
     }
     
     private JPanel createRemoveTrailerPanel() {
-        JPanel panel = new JPanel(new GridLayout(3, 1, 0, 5));
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
         
-        // 压缩参数面板（移到上面）
-        JPanel compressPanel = new JPanel(new BorderLayout(5, 0));
-        compressPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        compressPanel.add(new JLabel("压缩参数:"), BorderLayout.WEST);
+        JPanel inputsPanel = new JPanel(new GridLayout(3, 1, 0, 10));
+        inputsPanel.setOpaque(false);
+        inputsPanel.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
+        
+        // 压缩参数面板
+        JPanel compressPanel = new JPanel(new BorderLayout(10, 0));
+        compressPanel.setOpaque(false);
+        compressPanel.add(createStyledLabel("压缩参数:"), BorderLayout.WEST);
         compressPanel.add(trailerCompressParamsField, BorderLayout.CENTER);
         
         // 去水印参数面板
-        JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
-        delogoPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        delogoPanel.add(new JLabel("去未完待续参数(x,y,w,h):"), BorderLayout.WEST);
+        JPanel delogoPanel = new JPanel(new BorderLayout(10, 0));
+        delogoPanel.setOpaque(false);
+        delogoPanel.add(createStyledLabel("去未完待续参数(x,y,w,h):"), BorderLayout.WEST);
         delogoPanel.add(trailerDelogoParamsField, BorderLayout.CENTER);
         
         // 结尾处理时长面板
-        JPanel durationPanel = new JPanel(new BorderLayout(5, 0));
-        durationPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        durationPanel.add(new JLabel("结尾处理时长(秒):"), BorderLayout.WEST);
+        JPanel durationPanel = new JPanel(new BorderLayout(10, 0));
+        durationPanel.setOpaque(false);
+        durationPanel.add(createStyledLabel("结尾处理时长(秒):"), BorderLayout.WEST);
         durationPanel.add(trailerDurationField, BorderLayout.CENTER);
         
-        panel.add(compressPanel);
-        panel.add(delogoPanel);
-        panel.add(durationPanel);
+        inputsPanel.add(compressPanel);
+        inputsPanel.add(delogoPanel);
+        inputsPanel.add(durationPanel);
+        
+        // 添加说明面板
+        JPanel descPanel = new JPanel(new BorderLayout());
+        descPanel.setOpaque(false);
+        descPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JLabel descLabel = new JLabel("此功能用于去除视频末尾的\"未完待续\"等水印，处理后的文件会添加\"_w\"后缀");
+        descLabel.setFont(NORMAL_FONT);
+        descLabel.setForeground(new Color(90, 90, 90));
+        descPanel.add(descLabel, BorderLayout.CENTER);
+        
+        panel.add(inputsPanel, BorderLayout.NORTH);
+        panel.add(descPanel, BorderLayout.CENTER);
+        
         return panel;
+    }
+    
+    private ImageIcon createInfoIcon() {
+        // 创建信息图标
+        int size = 16;
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = image.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // 绘制圆形
+        g2.setColor(new Color(32, 61, 135));
+        g2.fillOval(0, 0, size, size);
+        
+        // 绘制"i"
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("SansSerif", Font.BOLD, 12));
+        FontMetrics fm = g2.getFontMetrics();
+        g2.drawString("i", (size - fm.stringWidth("i")) / 2, size - 4);
+        
+        g2.dispose();
+        return new ImageIcon(image);
     }
     
     private void updateCurrentPage(PageType pageType) {
@@ -539,10 +800,16 @@ public class FFmpegBatchProcessor extends JFrame {
         // 执行命令
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
+        
+        // 设置环境变量，确保正确处理中文路径和输出
+        Map<String, String> env = pb.environment();
+        env.put("LC_ALL", "zh_CN.UTF-8");
+        env.put("PYTHONIOENCODING", "utf-8");
+        
         Process process = pb.start();
         
         // 读取输出
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), "UTF-8"))) {
             String duration = reader.readLine();
             
             // 等待进程结束
@@ -625,10 +892,16 @@ public class FFmpegBatchProcessor extends JFrame {
         // 执行命令
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
+        
+        // 设置环境变量，确保正确处理中文路径和输出
+        Map<String, String> env = pb.environment();
+        env.put("LC_ALL", "zh_CN.UTF-8");
+        env.put("PYTHONIOENCODING", "utf-8");
+        
         Process process = pb.start();
         
         // 读取和显示输出
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), "UTF-8"))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 addLogMessage(line);
@@ -662,6 +935,17 @@ public class FFmpegBatchProcessor extends JFrame {
                lowerName.endsWith(".wmv") || lowerName.endsWith(".flv") ||
                lowerName.endsWith(".mp3") || lowerName.endsWith(".wav") ||
                lowerName.endsWith(".webm") || lowerName.endsWith(".m4a");
+    }
+    
+    // 检查字体是否可用
+    private boolean isFontAvailable(String fontName) {
+        Font[] fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts();
+        for (Font font : fonts) {
+            if (font.getName().equals(fontName)) {
+                return true;
+            }
+        }
+        return false;
     }
     
     public static void main(String[] args) {
