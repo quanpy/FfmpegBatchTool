@@ -3,7 +3,6 @@ package com.ffmpegui;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -59,6 +58,22 @@ public class FFmpegBatchProcessor extends JFrame {
     // 页面容器
     private JPanel cardPanel;
     private CardLayout cardLayout;
+    
+    // 默认的压缩参数
+    private static final String DEFAULT_COMPRESS_PARAMS = "-c:v libx264 -b:v 8000k -crf 23 -y";
+    
+    // 记录类型存储解析后的坐标参数
+    private record DelogoParams(int x, int y, int width, int height) {
+        public static DelogoParams parse(String params) {
+            String[] parts = params.split(",");
+            return new DelogoParams(
+                Integer.parseInt(parts[0]),
+                Integer.parseInt(parts[1]),
+                Integer.parseInt(parts[2]),
+                Integer.parseInt(parts[3])
+            );
+        }
+    }
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
@@ -95,19 +110,19 @@ public class FFmpegBatchProcessor extends JFrame {
         logArea.setEditable(false);
         
         // 初始化转小页面的输入字段
-        compressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
+        compressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
         
         // 初始化去小字页面的输入字段
         subtitleDelogoParamsField = new JTextField(20);
         subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
-        subtitleCompressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
+        subtitleCompressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
         
         // 初始化去未完待续页面的输入字段
         trailerDelogoParamsField = new JTextField(20);
         trailerDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
         trailerDurationField = new JTextField("2.2", 20);
         trailerDurationField.setToolTipText("视频结尾处理时长（秒），如2.2表示处理视频最后2.2秒");
-        trailerCompressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
+        trailerCompressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
         
         // 初始化页面布局管理器
         cardLayout = new CardLayout();
@@ -116,16 +131,11 @@ public class FFmpegBatchProcessor extends JFrame {
     
     private void initLogUpdateTimer() {
         // 创建一个定时器，定期从消息队列中获取消息并显示
-        logUpdateTimer = new Timer(100, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                updateLogFromQueue();
-            }
-        });
+        logUpdateTimer = new Timer(100, this::updateLogFromQueue);
         logUpdateTimer.start();
     }
     
-    private void updateLogFromQueue() {
+    private void updateLogFromQueue(ActionEvent e) {
         if (!messageQueue.isEmpty()) {
             StringBuilder sb = new StringBuilder();
             String message;
@@ -283,42 +293,30 @@ public class FFmpegBatchProcessor extends JFrame {
 
     private void addListeners() {
         // 浏览按钮监听器
-        browseButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                JFileChooser fileChooser = new JFileChooser();
-                fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-                int result = fileChooser.showOpenDialog(FFmpegBatchProcessor.this);
-                if (result == JFileChooser.APPROVE_OPTION) {
-                    File selectedFolder = fileChooser.getSelectedFile();
-                    folderPathField.setText(selectedFolder.getAbsolutePath());
-                }
+        browseButton.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            int result = fileChooser.showOpenDialog(FFmpegBatchProcessor.this);
+            if (result == JFileChooser.APPROVE_OPTION) {
+                File selectedFolder = fileChooser.getSelectedFile();
+                folderPathField.setText(selectedFolder.getAbsolutePath());
             }
         });
         
         // 处理按钮监听器
-        processButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String folderPath = folderPathField.getText().trim();
-                if (folderPath.isEmpty()) {
-                    JOptionPane.showMessageDialog(FFmpegBatchProcessor.this, 
-                        "请输入有效的文件夹路径", "错误", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                
-                // 根据当前页面执行不同的处理
-                switch (currentPage) {
-                    case COMPRESS:
-                        processCompress(folderPath);
-                        break;
-                    case REMOVE_SUBTITLE:
-                        processRemoveSubtitle(folderPath);
-                        break;
-                    case REMOVE_TRAILER:
-                        processRemoveTrailer(folderPath);
-                        break;
-                }
+        processButton.addActionListener(e -> {
+            String folderPath = folderPathField.getText().trim();
+            if (folderPath.isEmpty()) {
+                JOptionPane.showMessageDialog(FFmpegBatchProcessor.this, 
+                    "请输入有效的文件夹路径", "错误", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // 根据当前页面执行不同的处理
+            switch (currentPage) {
+                case COMPRESS -> processCompress(folderPath);
+                case REMOVE_SUBTITLE -> processRemoveSubtitle(folderPath);
+                case REMOVE_TRAILER -> processRemoveTrailer(folderPath);
             }
         });
     }
@@ -527,11 +525,8 @@ public class FFmpegBatchProcessor extends JFrame {
         command.add("csv=p=0");
         
         // 显示构建的命令
-        StringBuilder cmdLine = new StringBuilder();
-        for (String part : command) {
-            cmdLine.append(part).append(" ");
-        }
-        addLogMessage("执行命令: " + cmdLine.toString());
+        String cmdLine = String.join(" ", command);
+        addLogMessage("执行命令: " + cmdLine);
         
         // 执行命令
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -539,21 +534,22 @@ public class FFmpegBatchProcessor extends JFrame {
         Process process = pb.start();
         
         // 读取输出
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String duration = reader.readLine();
-        
-        // 等待进程结束
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new Exception("FFprobe进程返回错误代码: " + exitCode);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String duration = reader.readLine();
+            
+            // 等待进程结束
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new Exception("FFprobe进程返回错误代码: " + exitCode);
+            }
+            
+            if (duration == null || duration.trim().isEmpty()) {
+                throw new Exception("无法获取视频时长");
+            }
+            
+            addLogMessage("视频时长: " + duration + " 秒");
+            return duration.trim();
         }
-        
-        if (duration == null || duration.trim().isEmpty()) {
-            throw new Exception("无法获取视频时长");
-        }
-        
-        addLogMessage("视频时长: " + duration + " 秒");
-        return duration.trim();
     }
     
     private void processFile(File inputFile, String ffmpegArgs, String delogoParams, 
@@ -576,12 +572,8 @@ public class FFmpegBatchProcessor extends JFrame {
         
         // 添加去水印参数（如果提供）
         if (!delogoParams.isEmpty()) {
-            String[] params = delogoParams.split(",");
-            if (params.length == 4) {
-                String x = params[0];
-                String y = params[1];
-                String w = params[2];
-                String h = params[3];
+            try {
+                DelogoParams params = DelogoParams.parse(delogoParams);
                 
                 // 根据是否指定了结尾处理时长来构建不同的delogo参数
                 String delogoFilter;
@@ -592,27 +584,19 @@ public class FFmpegBatchProcessor extends JFrame {
                     
                     addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
                     
-                    delogoFilter = String.format(
-                        "\"delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'\"", 
-                        Integer.parseInt(x),
-                        Integer.parseInt(y),
-                        Integer.parseInt(w),
-                        Integer.parseInt(h),
-                        startTime,
-                        duration
-                    );
+                    delogoFilter = """
+                        "delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'" """
+                            .formatted(params.x(), params.y(), params.width(), params.height(), startTime, duration);
                 } else {
-                    delogoFilter = String.format(
-                        "\"delogo=x=%d:y=%d:w=%d:h=%d\"", 
-                        Integer.parseInt(x),
-                        Integer.parseInt(y),
-                        Integer.parseInt(w),
-                        Integer.parseInt(h)
-                    );
+                    delogoFilter = """
+                        "delogo=x=%d:y=%d:w=%d:h=%d" """.formatted(params.x(), params.y(), params.width(), params.height());
                 }
                 
                 command.add("-vf");
                 command.add(delogoFilter);
+            } catch (Exception e) {
+                addLogMessage("解析去水印参数时出错: " + e.getMessage());
+                throw e;
             }
         }
         
@@ -627,11 +611,8 @@ public class FFmpegBatchProcessor extends JFrame {
         command.add(outputPath);
         
         // 显示构建的命令
-        StringBuilder cmdLine = new StringBuilder();
-        for (String part : command) {
-            cmdLine.append(part).append(" ");
-        }
-        addLogMessage("执行命令: " + cmdLine.toString());
+        String cmdLine = String.join(" ", command);
+        addLogMessage("执行命令: " + cmdLine);
         
         // 执行命令
         ProcessBuilder pb = new ProcessBuilder(command);
@@ -639,19 +620,20 @@ public class FFmpegBatchProcessor extends JFrame {
         Process process = pb.start();
         
         // 读取和显示输出
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line;
-        while ((line = reader.readLine()) != null) {
-            addLogMessage(line);
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                addLogMessage(line);
+            }
+            
+            // 等待进程结束
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new Exception("FFmpeg进程返回错误代码: " + exitCode);
+            }
+            
+            addLogMessage("成功处理文件: " + inputFile.getName());
         }
-        
-        // 等待进程结束
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            throw new Exception("FFmpeg进程返回错误代码: " + exitCode);
-        }
-        
-        addLogMessage("成功处理文件: " + inputFile.getName());
     }
     
     private String generateOutputPath(String inputPath, String suffix) {
@@ -676,19 +658,16 @@ public class FFmpegBatchProcessor extends JFrame {
     
     public static void main(String[] args) {
         // 在EDT中运行GUI
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // 设置外观为系统外观
-                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                
-                FFmpegBatchProcessor app = new FFmpegBatchProcessor();
-                app.setVisible(true);
+        SwingUtilities.invokeLater(() -> {
+            try {
+                // 设置外观为系统外观
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+            
+            FFmpegBatchProcessor app = new FFmpegBatchProcessor();
+            app.setVisible(true);
         });
     }
 } 
