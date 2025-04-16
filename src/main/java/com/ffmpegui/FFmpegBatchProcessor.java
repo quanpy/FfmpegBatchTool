@@ -13,24 +13,56 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Pattern;
 
 public class FFmpegBatchProcessor extends JFrame {
+    // 共享组件
     private JTextField folderPathField;
-    private JTextField ffmpegCommandField;
-    private JTextField delogoParamsField;
-    private JTextField lastDurationField;
-    private JTextArea logArea;
     private JButton browseButton;
     private JButton processButton;
     private JProgressBar progressBar;
     private JLabel statusLabel;
-    private SwingWorker<Void, String> currentWorker;
+    private JTextArea logArea;
     private ConcurrentLinkedQueue<String> messageQueue = new ConcurrentLinkedQueue<>();
     private Timer logUpdateTimer;
+    
+    // 页面类型
+    private enum PageType {
+        COMPRESS("转小"),
+        REMOVE_SUBTITLE("去小字"),
+        REMOVE_TRAILER("去未完待续");
+        
+        private final String title;
+        
+        PageType(String title) {
+            this.title = title;
+        }
+        
+        public String getTitle() {
+            return title;
+        }
+    }
+    
+    // 当前页面
+    private PageType currentPage = PageType.COMPRESS;
+    
+    // 各页面的面板
+    private JPanel compressPanel;
+    private JPanel removeSubtitlePanel;
+    private JPanel removeTrailerPanel;
+    
+    // 各页面的输入字段
+    private JTextField compressParamsField;
+    private JTextField subtitleDelogoParamsField;
+    private JTextField trailerDelogoParamsField;
+    private JTextField trailerDurationField;
+    
+    // 页面容器
+    private JPanel cardPanel;
+    private CardLayout cardLayout;
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
-        super("FFmpeg批量去未完待续工具 @ocean.quan@wiitrans.com");
+        super("FFmpeg多功能批处理工具 @ocean.quan@wiitrans.com");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(800, 600);
+        setSize(800, 620);
         setLocationRelativeTo(null);
 
         // 创建界面组件
@@ -44,22 +76,37 @@ public class FFmpegBatchProcessor extends JFrame {
         
         // 初始化日志更新计时器
         initLogUpdateTimer();
+        
+        // 默认显示第一个页面
+        updateCurrentPage(PageType.COMPRESS);
     }
 
     private void initComponents() {
+        // 初始化共享组件
         folderPathField = new JTextField(20);
-        ffmpegCommandField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
-        delogoParamsField = new JTextField(20);
-        delogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
-        lastDurationField = new JTextField("2.2", 20);
-        lastDurationField.setToolTipText("视频结尾处理时长（秒），如10表示处理视频最后10秒");
-        logArea = new JTextArea();
-        logArea.setEditable(false);
         browseButton = new JButton("浏览...");
         processButton = new JButton("开始处理");
         progressBar = new JProgressBar(0, 100);
         progressBar.setStringPainted(true);
         statusLabel = new JLabel("就绪");
+        logArea = new JTextArea();
+        logArea.setEditable(false);
+        
+        // 初始化各页面的输入字段
+        compressParamsField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
+        
+        subtitleDelogoParamsField = new JTextField(20);
+        subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
+        
+        trailerDelogoParamsField = new JTextField(20);
+        trailerDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
+        
+        trailerDurationField = new JTextField("2.2", 20);
+        trailerDurationField.setToolTipText("视频结尾处理时长（秒），如2.2表示处理视频最后2.2秒");
+        
+        // 初始化页面布局管理器
+        cardLayout = new CardLayout();
+        cardPanel = new JPanel(cardLayout);
     }
     
     private void initLogUpdateTimer() {
@@ -96,66 +143,123 @@ public class FFmpegBatchProcessor extends JFrame {
     }
 
     private void layoutComponents() {
-        // 顶部面板 - 文件夹路径
+        // 创建顶部面板 - 文件夹路径
         JPanel topPanel = new JPanel(new BorderLayout(5, 0));
         topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 5, 10));
         topPanel.add(new JLabel("文件夹路径:"), BorderLayout.WEST);
         topPanel.add(folderPathField, BorderLayout.CENTER);
         topPanel.add(browseButton, BorderLayout.EAST);
-
-        // 命令面板 - FFmpeg命令
-        JPanel commandPanel = new JPanel(new BorderLayout(5, 0));
-        commandPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        commandPanel.add(new JLabel("FFmpeg参数:"), BorderLayout.WEST);
-        commandPanel.add(ffmpegCommandField, BorderLayout.CENTER);
         
-        // 去水印参数面板
-        JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
-        delogoPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        delogoPanel.add(new JLabel("去水印参数(x,y,w,h):"), BorderLayout.WEST);
-        delogoPanel.add(delogoParamsField, BorderLayout.CENTER);
+        // 创建切换页面的按钮面板
+        JPanel tabButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        for (PageType pageType : PageType.values()) {
+            JButton pageButton = new JButton(pageType.getTitle());
+            pageButton.addActionListener(e -> updateCurrentPage(pageType));
+            tabButtonPanel.add(pageButton);
+        }
         
-        // 结尾处理时长面板
-        JPanel durationPanel = new JPanel(new BorderLayout(5, 0));
-        durationPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-        durationPanel.add(new JLabel("结尾处理时长(秒):"), BorderLayout.WEST);
-        durationPanel.add(lastDurationField, BorderLayout.CENTER);
+        // 创建转小页面
+        compressPanel = createCompressPanel();
         
-        // 命令参数面板（包含FFmpeg命令和去水印参数）
-        JPanel paramsPanel = new JPanel(new GridLayout(3, 1, 0, 5));
-        paramsPanel.add(commandPanel);
-        paramsPanel.add(delogoPanel);
-        paramsPanel.add(durationPanel);
+        // 创建去小字页面
+        removeSubtitlePanel = createRemoveSubtitlePanel();
         
-        // 日志区域
-        JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        // 创建去未完待续页面
+        removeTrailerPanel = createRemoveTrailerPanel();
         
-        // 控制面板（包含按钮和状态）
+        // 添加页面到卡片布局
+        cardPanel.add(compressPanel, PageType.COMPRESS.name());
+        cardPanel.add(removeSubtitlePanel, PageType.REMOVE_SUBTITLE.name());
+        cardPanel.add(removeTrailerPanel, PageType.REMOVE_TRAILER.name());
+        
+        // 创建控制面板（包含按钮和状态）
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(processButton);
         
-        // 状态面板
+        // 创建状态面板
         JPanel statusPanel = new JPanel(new BorderLayout(5, 0));
         statusPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 10, 10));
         statusPanel.add(statusLabel, BorderLayout.WEST);
         statusPanel.add(progressBar, BorderLayout.CENTER);
         
-        // 底部面板（合并按钮和状态面板）
+        // 创建底部面板（合并按钮和状态面板）
         JPanel bottomPanel = new JPanel(new BorderLayout());
         bottomPanel.add(buttonPanel, BorderLayout.NORTH);
         bottomPanel.add(statusPanel, BorderLayout.SOUTH);
         
-        // 主面板
-        JPanel mainPanel = new JPanel(new BorderLayout());
-        mainPanel.add(topPanel, BorderLayout.NORTH);
-        mainPanel.add(paramsPanel, BorderLayout.CENTER);
+        // 创建日志区域
+        JScrollPane scrollPane = new JScrollPane(logArea);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        
+        // 创建功能页面顶部面板（包含标签页按钮和卡片面板）
+        JPanel functionTopPanel = new JPanel(new BorderLayout());
+        functionTopPanel.add(tabButtonPanel, BorderLayout.NORTH);
+        functionTopPanel.add(cardPanel, BorderLayout.CENTER);
         
         // 将所有组件添加到窗口
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.add(topPanel, BorderLayout.NORTH);
+        mainPanel.add(functionTopPanel, BorderLayout.CENTER);
+        
         getContentPane().setLayout(new BorderLayout());
         getContentPane().add(mainPanel, BorderLayout.NORTH);
         getContentPane().add(scrollPane, BorderLayout.CENTER);
         getContentPane().add(bottomPanel, BorderLayout.SOUTH);
+    }
+    
+    private JPanel createCompressPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        // 命令面板 - FFmpeg命令
+        JPanel commandPanel = new JPanel(new BorderLayout(5, 0));
+        commandPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        commandPanel.add(new JLabel("压缩参数:"), BorderLayout.WEST);
+        commandPanel.add(compressParamsField, BorderLayout.CENTER);
+        
+        panel.add(commandPanel, BorderLayout.NORTH);
+        return panel;
+    }
+    
+    private JPanel createRemoveSubtitlePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        
+        // 去水印参数面板
+        JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
+        delogoPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        delogoPanel.add(new JLabel("去小字参数(x,y,w,h):"), BorderLayout.WEST);
+        delogoPanel.add(subtitleDelogoParamsField, BorderLayout.CENTER);
+        
+        panel.add(delogoPanel, BorderLayout.NORTH);
+        return panel;
+    }
+    
+    private JPanel createRemoveTrailerPanel() {
+        JPanel panel = new JPanel(new GridLayout(2, 1, 0, 5));
+        
+        // 去水印参数面板
+        JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
+        delogoPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        delogoPanel.add(new JLabel("去未完待续参数(x,y,w,h):"), BorderLayout.WEST);
+        delogoPanel.add(trailerDelogoParamsField, BorderLayout.CENTER);
+        
+        // 结尾处理时长面板
+        JPanel durationPanel = new JPanel(new BorderLayout(5, 0));
+        durationPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        durationPanel.add(new JLabel("结尾处理时长(秒):"), BorderLayout.WEST);
+        durationPanel.add(trailerDurationField, BorderLayout.CENTER);
+        
+        panel.add(delogoPanel);
+        panel.add(durationPanel);
+        return panel;
+    }
+    
+    private void updateCurrentPage(PageType pageType) {
+        currentPage = pageType;
+        cardLayout.show(cardPanel, pageType.name());
+        setTitle("FFmpeg多功能批处理工具 - " + pageType.getTitle());
+        
+        // 根据当前页面更新处理按钮文本
+        processButton.setText("开始" + pageType.getTitle());
     }
 
     private void addListeners() {
@@ -184,49 +288,123 @@ public class FFmpegBatchProcessor extends JFrame {
                     return;
                 }
                 
-                String ffmpegCommand = ffmpegCommandField.getText().trim();
-                String delogoParams = delogoParamsField.getText().trim();
-                String lastDuration = lastDurationField.getText().trim();
-                
-                // 验证去水印参数格式
-                if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
-                    JOptionPane.showMessageDialog(FFmpegBatchProcessor.this, 
-                        "去水印参数格式不正确，请使用x,y,w,h格式（例如：98,1169,879,155）", 
-                        "错误", JOptionPane.ERROR_MESSAGE);
-                    return;
+                // 根据当前页面执行不同的处理
+                switch (currentPage) {
+                    case COMPRESS:
+                        processCompress(folderPath);
+                        break;
+                    case REMOVE_SUBTITLE:
+                        processRemoveSubtitle(folderPath);
+                        break;
+                    case REMOVE_TRAILER:
+                        processRemoveTrailer(folderPath);
+                        break;
                 }
-                
-                // 验证结尾处理时长格式
-                if (!lastDuration.isEmpty()) {
-                    try {
-                        Double.parseDouble(lastDuration);
-                    } catch (NumberFormatException ex) {
-                        JOptionPane.showMessageDialog(FFmpegBatchProcessor.this, 
-                            "结尾处理时长必须是有效的数字（秒）", "错误", JOptionPane.ERROR_MESSAGE);
-                        return;
-                    }
-                }
-                
-                // 禁用按钮防止重复点击
-                processButton.setEnabled(false);
-                
-                // 清空日志
-                logArea.setText("");
-                
-                // 在后台线程中执行处理
-                new Thread(() -> {
-                    try {
-                        processFiles(folderPath, ffmpegCommand, delogoParams, lastDuration);
-                    } finally {
-                        SwingUtilities.invokeLater(() -> {
-                            processButton.setEnabled(true);
-                            statusLabel.setText("处理完成");
-                            progressBar.setValue(100);
-                        });
-                    }
-                }).start();
             }
         });
+    }
+    
+    private void processCompress(String folderPath) {
+        String ffmpegCommand = compressParamsField.getText().trim();
+        
+        // 禁用按钮防止重复点击
+        processButton.setEnabled(false);
+        
+        // 清空日志
+        logArea.setText("");
+        
+        addLogMessage("开始压缩处理...");
+        
+        // 在后台线程中执行处理
+        new Thread(() -> {
+            try {
+                processFiles(folderPath, ffmpegCommand, "", "", "c");
+            } finally {
+                SwingUtilities.invokeLater(() -> {
+                    processButton.setEnabled(true);
+                    statusLabel.setText("处理完成");
+                    progressBar.setValue(100);
+                });
+            }
+        }).start();
+    }
+    
+    private void processRemoveSubtitle(String folderPath) {
+        String delogoParams = subtitleDelogoParamsField.getText().trim();
+        
+        // 验证去水印参数格式
+        if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
+            JOptionPane.showMessageDialog(this, 
+                "去小字参数格式不正确，请使用x,y,w,h格式（例如：98,1169,879,155）", 
+                "错误", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        // 禁用按钮防止重复点击
+        processButton.setEnabled(false);
+        
+        // 清空日志
+        logArea.setText("");
+        
+        addLogMessage("开始去小字处理...");
+        
+        // 在后台线程中执行处理
+        new Thread(() -> {
+            try {
+                processFiles(folderPath, "-c:v libx264 -b:v 8000k -crf 23 -y", delogoParams, "", "s");
+            } finally {
+                SwingUtilities.invokeLater(() -> {
+                    processButton.setEnabled(true);
+                    statusLabel.setText("处理完成");
+                    progressBar.setValue(100);
+                });
+            }
+        }).start();
+    }
+    
+    private void processRemoveTrailer(String folderPath) {
+        String delogoParams = trailerDelogoParamsField.getText().trim();
+        String lastDuration = trailerDurationField.getText().trim();
+        
+        // 验证去水印参数格式
+        if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
+            JOptionPane.showMessageDialog(this, 
+                "去未完待续参数格式不正确，请使用x,y,w,h格式（例如：98,1169,879,155）", 
+                "错误", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        // 验证结尾处理时长格式
+        if (!lastDuration.isEmpty()) {
+            try {
+                Double.parseDouble(lastDuration);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, 
+                    "结尾处理时长必须是有效的数字（秒）", "错误", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+        
+        // 禁用按钮防止重复点击
+        processButton.setEnabled(false);
+        
+        // 清空日志
+        logArea.setText("");
+        
+        addLogMessage("开始去未完待续处理...");
+        
+        // 在后台线程中执行处理
+        new Thread(() -> {
+            try {
+                processFiles(folderPath, "-c:v libx264 -b:v 8000k -crf 23 -y", delogoParams, lastDuration, "w");
+            } finally {
+                SwingUtilities.invokeLater(() -> {
+                    processButton.setEnabled(true);
+                    statusLabel.setText("处理完成");
+                    progressBar.setValue(100);
+                });
+            }
+        }).start();
     }
     
     private boolean isValidDelogoParams(String params) {
@@ -235,7 +413,8 @@ public class FFmpegBatchProcessor extends JFrame {
         return Pattern.matches(regex, params);
     }
     
-    private void processFiles(String folderPath, String ffmpegArgs, String delogoParams, String lastDuration) {
+    private void processFiles(String folderPath, String ffmpegArgs, String delogoParams, 
+                             String lastDuration, String outputSuffix) {
         File folder = new File(folderPath);
         if (!folder.exists() || !folder.isDirectory()) {
             SwingUtilities.invokeLater(() -> {
@@ -294,7 +473,7 @@ public class FFmpegBatchProcessor extends JFrame {
             });
             
             try {
-                processFile(file, ffmpegArgs, delogoParams, lastDuration);
+                processFile(file, ffmpegArgs, delogoParams, lastDuration, outputSuffix);
             } catch (Exception e) {
                 final String errorMessage = "处理文件 " + fileName + " 时出错: " + e.getMessage();
                 SwingUtilities.invokeLater(() -> {
@@ -356,9 +535,10 @@ public class FFmpegBatchProcessor extends JFrame {
         return duration.trim();
     }
     
-    private void processFile(File inputFile, String ffmpegArgs, String delogoParams, String lastDuration) throws Exception {
+    private void processFile(File inputFile, String ffmpegArgs, String delogoParams, 
+                            String lastDuration, String outputSuffix) throws Exception {
         String inputPath = inputFile.getAbsolutePath();
-        String outputPath = generateOutputPath(inputPath);
+        String outputPath = generateOutputPath(inputPath, outputSuffix);
         
         // 如果指定了结尾处理时长，获取视频总时长
         String endTime = null;
@@ -453,14 +633,14 @@ public class FFmpegBatchProcessor extends JFrame {
         addLogMessage("成功处理文件: " + inputFile.getName());
     }
     
-    private String generateOutputPath(String inputPath) {
+    private String generateOutputPath(String inputPath, String suffix) {
         int dotIndex = inputPath.lastIndexOf('.');
         if (dotIndex > 0) {
             String basePath = inputPath.substring(0, dotIndex);
             String extension = inputPath.substring(dotIndex);
-            return basePath + "_w" + extension;
+            return basePath + "_" + suffix + extension;
         } else {
-            return inputPath + "_w";
+            return inputPath + "_" + suffix;
         }
     }
     
@@ -478,6 +658,13 @@ public class FFmpegBatchProcessor extends JFrame {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
+                try {
+                    // 设置外观为系统外观
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                
                 FFmpegBatchProcessor app = new FFmpegBatchProcessor();
                 app.setVisible(true);
             }
