@@ -16,6 +16,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private JTextField folderPathField;
     private JTextField ffmpegCommandField;
     private JTextField delogoParamsField;
+    private JTextField lastDurationField;
     private JTextArea logArea;
     private JButton browseButton;
     private JButton processButton;
@@ -27,7 +28,7 @@ public class FFmpegBatchProcessor extends JFrame {
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
-        super("FFmpeg批量去小字工具 @ocean.quan@wiitrans.com");
+        super("FFmpeg批量去未完待续工具 @ocean.quan@wiitrans.com");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(800, 600);
         setLocationRelativeTo(null);
@@ -50,6 +51,8 @@ public class FFmpegBatchProcessor extends JFrame {
         ffmpegCommandField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
         delogoParamsField = new JTextField(20);
         delogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
+        lastDurationField = new JTextField("2.2", 20);
+        lastDurationField.setToolTipText("视频结尾处理时长（秒），如10表示处理视频最后10秒");
         logArea = new JTextArea();
         logArea.setEditable(false);
         browseButton = new JButton("浏览...");
@@ -112,10 +115,17 @@ public class FFmpegBatchProcessor extends JFrame {
         delogoPanel.add(new JLabel("去水印参数(x,y,w,h):"), BorderLayout.WEST);
         delogoPanel.add(delogoParamsField, BorderLayout.CENTER);
         
+        // 结尾处理时长面板
+        JPanel durationPanel = new JPanel(new BorderLayout(5, 0));
+        durationPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        durationPanel.add(new JLabel("结尾处理时长(秒):"), BorderLayout.WEST);
+        durationPanel.add(lastDurationField, BorderLayout.CENTER);
+        
         // 命令参数面板（包含FFmpeg命令和去水印参数）
-        JPanel paramsPanel = new JPanel(new GridLayout(2, 1, 0, 5));
+        JPanel paramsPanel = new JPanel(new GridLayout(3, 1, 0, 5));
         paramsPanel.add(commandPanel);
         paramsPanel.add(delogoPanel);
+        paramsPanel.add(durationPanel);
         
         // 日志区域
         JScrollPane scrollPane = new JScrollPane(logArea);
@@ -176,6 +186,7 @@ public class FFmpegBatchProcessor extends JFrame {
                 
                 String ffmpegCommand = ffmpegCommandField.getText().trim();
                 String delogoParams = delogoParamsField.getText().trim();
+                String lastDuration = lastDurationField.getText().trim();
                 
                 // 验证去水印参数格式
                 if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
@@ -183,6 +194,17 @@ public class FFmpegBatchProcessor extends JFrame {
                         "去水印参数格式不正确，请使用x,y,w,h格式（例如：98,1169,879,155）", 
                         "错误", JOptionPane.ERROR_MESSAGE);
                     return;
+                }
+                
+                // 验证结尾处理时长格式
+                if (!lastDuration.isEmpty()) {
+                    try {
+                        Double.parseDouble(lastDuration);
+                    } catch (NumberFormatException ex) {
+                        JOptionPane.showMessageDialog(FFmpegBatchProcessor.this, 
+                            "结尾处理时长必须是有效的数字（秒）", "错误", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
                 }
                 
                 // 禁用按钮防止重复点击
@@ -194,7 +216,7 @@ public class FFmpegBatchProcessor extends JFrame {
                 // 在后台线程中执行处理
                 new Thread(() -> {
                     try {
-                        processFiles(folderPath, ffmpegCommand, delogoParams);
+                        processFiles(folderPath, ffmpegCommand, delogoParams, lastDuration);
                     } finally {
                         SwingUtilities.invokeLater(() -> {
                             processButton.setEnabled(true);
@@ -213,7 +235,7 @@ public class FFmpegBatchProcessor extends JFrame {
         return Pattern.matches(regex, params);
     }
     
-    private void processFiles(String folderPath, String ffmpegArgs, String delogoParams) {
+    private void processFiles(String folderPath, String ffmpegArgs, String delogoParams, String lastDuration) {
         File folder = new File(folderPath);
         if (!folder.exists() || !folder.isDirectory()) {
             SwingUtilities.invokeLater(() -> {
@@ -272,13 +294,17 @@ public class FFmpegBatchProcessor extends JFrame {
             });
             
             try {
-                processFile(file, ffmpegArgs, delogoParams);
+                processFile(file, ffmpegArgs, delogoParams, lastDuration);
             } catch (Exception e) {
                 final String errorMessage = "处理文件 " + fileName + " 时出错: " + e.getMessage();
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("错误: " + fileName);
                 });
                 addLogMessage(errorMessage);
+                addLogMessage(e.toString());
+                for (StackTraceElement element : e.getStackTrace()) {
+                    addLogMessage(element.toString());
+                }
             }
             
             SwingUtilities.invokeLater(() -> {
@@ -287,9 +313,59 @@ public class FFmpegBatchProcessor extends JFrame {
         }
     }
     
-    private void processFile(File inputFile, String ffmpegArgs, String delogoParams) throws Exception {
+    private String getVideoDuration(String inputPath) throws Exception {
+        // 构建ffprobe命令获取视频时长
+        List<String> command = new ArrayList<>();
+        command.add("ffprobe");
+        command.add("-i");
+        command.add(inputPath);
+        command.add("-show_entries");
+        command.add("format=duration");
+        command.add("-v");
+        command.add("quiet");
+        command.add("-of");
+        command.add("csv=p=0");
+        
+        // 显示构建的命令
+        StringBuilder cmdLine = new StringBuilder();
+        for (String part : command) {
+            cmdLine.append(part).append(" ");
+        }
+        addLogMessage("执行命令: " + cmdLine.toString());
+        
+        // 执行命令
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        
+        // 读取输出
+        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        String duration = reader.readLine();
+        
+        // 等待进程结束
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new Exception("FFprobe进程返回错误代码: " + exitCode);
+        }
+        
+        if (duration == null || duration.trim().isEmpty()) {
+            throw new Exception("无法获取视频时长");
+        }
+        
+        addLogMessage("视频时长: " + duration + " 秒");
+        return duration.trim();
+    }
+    
+    private void processFile(File inputFile, String ffmpegArgs, String delogoParams, String lastDuration) throws Exception {
         String inputPath = inputFile.getAbsolutePath();
         String outputPath = generateOutputPath(inputPath);
+        
+        // 如果指定了结尾处理时长，获取视频总时长
+        String endTime = null;
+        if (!lastDuration.isEmpty() && !delogoParams.isEmpty()) {
+            endTime = getVideoDuration(inputPath);
+            addLogMessage("视频总时长: " + endTime);
+        }
         
         // 构建FFmpeg命令
         List<String> command = new ArrayList<>();
@@ -306,11 +382,34 @@ public class FFmpegBatchProcessor extends JFrame {
                 String w = params[2];
                 String h = params[3];
                 
-                String delogoFilter = """
-                        "delogo=x=%d:y=%d:w=%d:h=%d" """.formatted(Integer.parseInt(x),
+                // 根据是否指定了结尾处理时长来构建不同的delogo参数
+                String delogoFilter;
+                if (endTime != null && !lastDuration.isEmpty()) {
+                    double duration = Double.parseDouble(endTime);
+                    double lastDurationValue = Double.parseDouble(lastDuration);
+                    double startTime = Math.max(0, duration - lastDurationValue);
+                    
+                    addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
+                    
+                    delogoFilter = String.format(
+                        "\"delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'\"", 
+                        Integer.parseInt(x),
                         Integer.parseInt(y),
                         Integer.parseInt(w),
-                        Integer.parseInt(h));
+                        Integer.parseInt(h),
+                        startTime,
+                        duration
+                    );
+                } else {
+                    delogoFilter = String.format(
+                        "\"delogo=x=%d:y=%d:w=%d:h=%d\"", 
+                        Integer.parseInt(x),
+                        Integer.parseInt(y),
+                        Integer.parseInt(w),
+                        Integer.parseInt(h)
+                    );
+                }
+                
                 command.add("-vf");
                 command.add(delogoFilter);
             }
@@ -359,9 +458,9 @@ public class FFmpegBatchProcessor extends JFrame {
         if (dotIndex > 0) {
             String basePath = inputPath.substring(0, dotIndex);
             String extension = inputPath.substring(dotIndex);
-            return basePath + "_small" + extension;
+            return basePath + "_w" + extension;
         } else {
-            return inputPath + "_small";
+            return inputPath + "_w";
         }
     }
     
