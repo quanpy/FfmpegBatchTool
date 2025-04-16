@@ -114,7 +114,7 @@ public class FFmpegBatchProcessor extends JFrame {
         
         // 初始化去小字页面的输入字段
         subtitleDelogoParamsField = new JTextField(20);
-        subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
+        subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）注意：涂抹边界不要紧贴视频边界");
         subtitleCompressParamsField = new JTextField(DEFAULT_COMPRESS_PARAMS, 20);
         
         // 初始化去未完待续页面的输入字段
@@ -236,7 +236,7 @@ public class FFmpegBatchProcessor extends JFrame {
     }
     
     private JPanel createRemoveSubtitlePanel() {
-        JPanel panel = new JPanel(new GridLayout(2, 1, 0, 5));
+        JPanel panel = new JPanel(new GridLayout(3, 1, 0, 5));
         
         // 压缩参数面板（移到上面）
         JPanel compressPanel = new JPanel(new BorderLayout(5, 0));
@@ -250,8 +250,16 @@ public class FFmpegBatchProcessor extends JFrame {
         delogoPanel.add(new JLabel("去小字参数(x,y,w,h):"), BorderLayout.WEST);
         delogoPanel.add(subtitleDelogoParamsField, BorderLayout.CENTER);
         
+        // 提示面板
+        JPanel tipPanel = new JPanel(new BorderLayout(5, 0));
+        tipPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        JLabel tipLabel = new JLabel("提示：涂抹边界不要紧贴视频边界，留出一点点距离，否则会报错！");
+        tipLabel.setForeground(new Color(255, 0, 0));
+        tipPanel.add(tipLabel, BorderLayout.CENTER);
+        
         panel.add(compressPanel);
         panel.add(delogoPanel);
+        panel.add(tipPanel);
         return panel;
     }
     
