@@ -25,7 +25,7 @@ public class FFmpegBatchProcessor extends JFrame {
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
-        super("FFmpeg批量处理工具");
+        super("FFmpeg批量缩小处理工具 @ocean.quan@wiitrans.com");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(800, 600);
         setLocationRelativeTo(null);
@@ -45,7 +45,7 @@ public class FFmpegBatchProcessor extends JFrame {
 
     private void initComponents() {
         folderPathField = new JTextField(20);
-        ffmpegCommandField = new JTextField("-c:v libx264 -b:v8000k -crf 23", 20);
+        ffmpegCommandField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
         logArea = new JTextArea();
         logArea.setEditable(false);
         browseButton = new JButton("浏览...");
@@ -303,9 +303,9 @@ public class FFmpegBatchProcessor extends JFrame {
         if (dotIndex > 0) {
             String basePath = inputPath.substring(0, dotIndex);
             String extension = inputPath.substring(dotIndex);
-            return basePath + "_processed" + extension;
+            return basePath + "_small" + extension;
         } else {
-            return inputPath + "_processed";
+            return inputPath + "_small";
         }
     }
     
