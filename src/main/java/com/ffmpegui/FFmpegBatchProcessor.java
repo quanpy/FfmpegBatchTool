@@ -256,7 +256,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private void updateCurrentPage(PageType pageType) {
         currentPage = pageType;
         cardLayout.show(cardPanel, pageType.name());
-        setTitle("FFmpeg多功能批处理工具 - " + pageType.getTitle());
+        setTitle("FFmpeg多功能批处理工具 - " + pageType.getTitle() + " - @ocean.quan@wiitrans.com");
         
         // 根据当前页面更新处理按钮文本
         processButton.setText("开始" + pageType.getTitle());
