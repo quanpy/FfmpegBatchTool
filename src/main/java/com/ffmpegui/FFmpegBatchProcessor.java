@@ -254,7 +254,7 @@ public class FFmpegBatchProcessor extends JFrame {
         JPanel tipPanel = new JPanel(new BorderLayout(5, 0));
         tipPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         JLabel tipLabel = new JLabel("提示：涂抹边界不要紧贴视频边界，留出一点点距离，否则会报错！");
-        tipLabel.setForeground(new Color(255, 0, 0));
+        tipLabel.setForeground(new Color(32, 61, 135));
         tipPanel.add(tipLabel, BorderLayout.CENTER);
         
         panel.add(compressPanel);
