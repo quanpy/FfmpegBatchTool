@@ -10,10 +10,12 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.regex.Pattern;
 
 public class FFmpegBatchProcessor extends JFrame {
     private JTextField folderPathField;
     private JTextField ffmpegCommandField;
+    private JTextField delogoParamsField;
     private JTextArea logArea;
     private JButton browseButton;
     private JButton processButton;
@@ -25,7 +27,7 @@ public class FFmpegBatchProcessor extends JFrame {
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
-        super("FFmpeg批量缩小处理工具 @ocean.quan@wiitrans.com");
+        super("FFmpeg批量去小字工具 @ocean.quan@wiitrans.com");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(800, 600);
         setLocationRelativeTo(null);
@@ -46,6 +48,8 @@ public class FFmpegBatchProcessor extends JFrame {
     private void initComponents() {
         folderPathField = new JTextField(20);
         ffmpegCommandField = new JTextField("-c:v libx264 -b:v 8000k -crf 23 -y", 20);
+        delogoParamsField = new JTextField(20);
+        delogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）");
         logArea = new JTextArea();
         logArea.setEditable(false);
         browseButton = new JButton("浏览...");
@@ -102,6 +106,17 @@ public class FFmpegBatchProcessor extends JFrame {
         commandPanel.add(new JLabel("FFmpeg参数:"), BorderLayout.WEST);
         commandPanel.add(ffmpegCommandField, BorderLayout.CENTER);
         
+        // 去水印参数面板
+        JPanel delogoPanel = new JPanel(new BorderLayout(5, 0));
+        delogoPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        delogoPanel.add(new JLabel("去水印参数(x,y,w,h):"), BorderLayout.WEST);
+        delogoPanel.add(delogoParamsField, BorderLayout.CENTER);
+        
+        // 命令参数面板（包含FFmpeg命令和去水印参数）
+        JPanel paramsPanel = new JPanel(new GridLayout(2, 1, 0, 5));
+        paramsPanel.add(commandPanel);
+        paramsPanel.add(delogoPanel);
+        
         // 日志区域
         JScrollPane scrollPane = new JScrollPane(logArea);
         scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
@@ -124,7 +139,7 @@ public class FFmpegBatchProcessor extends JFrame {
         // 主面板
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.add(topPanel, BorderLayout.NORTH);
-        mainPanel.add(commandPanel, BorderLayout.CENTER);
+        mainPanel.add(paramsPanel, BorderLayout.CENTER);
         
         // 将所有组件添加到窗口
         getContentPane().setLayout(new BorderLayout());
@@ -160,6 +175,15 @@ public class FFmpegBatchProcessor extends JFrame {
                 }
                 
                 String ffmpegCommand = ffmpegCommandField.getText().trim();
+                String delogoParams = delogoParamsField.getText().trim();
+                
+                // 验证去水印参数格式
+                if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
+                    JOptionPane.showMessageDialog(FFmpegBatchProcessor.this, 
+                        "去水印参数格式不正确，请使用x,y,w,h格式（例如：98,1169,879,155）", 
+                        "错误", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
                 
                 // 禁用按钮防止重复点击
                 processButton.setEnabled(false);
@@ -170,7 +194,7 @@ public class FFmpegBatchProcessor extends JFrame {
                 // 在后台线程中执行处理
                 new Thread(() -> {
                     try {
-                        processFiles(folderPath, ffmpegCommand);
+                        processFiles(folderPath, ffmpegCommand, delogoParams);
                     } finally {
                         SwingUtilities.invokeLater(() -> {
                             processButton.setEnabled(true);
@@ -183,7 +207,13 @@ public class FFmpegBatchProcessor extends JFrame {
         });
     }
     
-    private void processFiles(String folderPath, String ffmpegArgs) {
+    private boolean isValidDelogoParams(String params) {
+        // 检查格式是否为四个数字，用逗号分隔
+        String regex = "\\d+,\\d+,\\d+,\\d+";
+        return Pattern.matches(regex, params);
+    }
+    
+    private void processFiles(String folderPath, String ffmpegArgs, String delogoParams) {
         File folder = new File(folderPath);
         if (!folder.exists() || !folder.isDirectory()) {
             SwingUtilities.invokeLater(() -> {
@@ -242,7 +272,7 @@ public class FFmpegBatchProcessor extends JFrame {
             });
             
             try {
-                processFile(file, ffmpegArgs);
+                processFile(file, ffmpegArgs, delogoParams);
             } catch (Exception e) {
                 final String errorMessage = "处理文件 " + fileName + " 时出错: " + e.getMessage();
                 SwingUtilities.invokeLater(() -> {
@@ -257,7 +287,7 @@ public class FFmpegBatchProcessor extends JFrame {
         }
     }
     
-    private void processFile(File inputFile, String ffmpegArgs) throws Exception {
+    private void processFile(File inputFile, String ffmpegArgs, String delogoParams) throws Exception {
         String inputPath = inputFile.getAbsolutePath();
         String outputPath = generateOutputPath(inputPath);
         
@@ -266,6 +296,25 @@ public class FFmpegBatchProcessor extends JFrame {
         command.add("ffmpeg");
         command.add("-i");
         command.add(inputPath);
+        
+        // 添加去水印参数（如果提供）
+        if (!delogoParams.isEmpty()) {
+            String[] params = delogoParams.split(",");
+            if (params.length == 4) {
+                String x = params[0];
+                String y = params[1];
+                String w = params[2];
+                String h = params[3];
+                
+                String delogoFilter = """
+                        "delogo=x=%d:y=%d:w=%d:h=%d" """.formatted(Integer.parseInt(x),
+                        Integer.parseInt(y),
+                        Integer.parseInt(w),
+                        Integer.parseInt(h));
+                command.add("-vf");
+                command.add(delogoFilter);
+            }
+        }
         
         // 添加用户指定的参数
         String[] args = ffmpegArgs.split("\\s+");
@@ -276,6 +325,13 @@ public class FFmpegBatchProcessor extends JFrame {
         }
         
         command.add(outputPath);
+        
+        // 显示构建的命令
+        StringBuilder cmdLine = new StringBuilder();
+        for (String part : command) {
+            cmdLine.append(part).append(" ");
+        }
+        addLogMessage("执行命令: " + cmdLine.toString());
         
         // 执行命令
         ProcessBuilder pb = new ProcessBuilder(command);
