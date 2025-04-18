@@ -154,6 +154,10 @@ public class FFmpegBatchProcessor extends JFrame {
 
         // 设置窗口背景颜色
         getContentPane().setBackground(BACKGROUND_COLOR);
+
+        addLogMessage("====   start success.   =====");
+        addLogMessage("把这段加到压制参数前面 -vf \"scale=1080:1920\" 可将4K/2k视频转为竖版1080p");
+
     }
 
     private void initComponents() {
