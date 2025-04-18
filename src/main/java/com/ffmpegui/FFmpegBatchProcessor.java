@@ -1344,26 +1344,10 @@ public class FFmpegBatchProcessor extends JFrame {
     private void createAccelerationComponents() {
         accelerationGroup = new ButtonGroup();
         
-        cpuRadioButton = new JRadioButton("CPU (libx264)");
-        cpuRadioButton.setFont(NORMAL_FONT);
-        cpuRadioButton.setOpaque(false);
-        cpuRadioButton.setSelected(true);
-        cpuRadioButton.setActionCommand("cpu");
-        
-        nvencRadioButton = new JRadioButton("NVIDIA GPU (h264_nvenc)");
-        nvencRadioButton.setFont(NORMAL_FONT);
-        nvencRadioButton.setOpaque(false);
-        nvencRadioButton.setActionCommand("nvenc");
-        
-        intelRadioButton = new JRadioButton("Intel GPU (h264_qsv)");
-        intelRadioButton.setFont(NORMAL_FONT);
-        intelRadioButton.setOpaque(false);
-        intelRadioButton.setActionCommand("intel");
-        
-        amdRadioButton = new JRadioButton("AMD GPU (h264_amf)");
-        amdRadioButton.setFont(NORMAL_FONT);
-        amdRadioButton.setOpaque(false);
-        amdRadioButton.setActionCommand("amd");
+        cpuRadioButton = createStyledRadioButton("CPU (libx264)", "cpu", true);
+        nvencRadioButton = createStyledRadioButton("NVIDIA GPU (h264_nvenc)", "nvenc", false);
+        intelRadioButton = createStyledRadioButton("Intel GPU (h264_qsv)", "intel", false);
+        amdRadioButton = createStyledRadioButton("AMD GPU (h264_amf)", "amd", false);
         
         accelerationGroup.add(cpuRadioButton);
         accelerationGroup.add(nvencRadioButton);
@@ -1389,18 +1373,6 @@ public class FFmpegBatchProcessor extends JFrame {
         
         // 添加切换参数的监听器
         ActionListener paramSwitchListener = e -> {
-            // 记录选中的按钮的ActionCommand
-            String command = ((JRadioButton)e.getSource()).getActionCommand();
-            
-            // 根据选中的按钮同步更新主按钮组的选中状态
-            switch (command) {
-                case "cpu" -> cpuRadioButton.setSelected(true);
-                case "nvenc" -> nvencRadioButton.setSelected(true);
-                case "intel" -> intelRadioButton.setSelected(true);
-                case "amd" -> amdRadioButton.setSelected(true);
-            }
-            
-            // 更新所有页面的压缩参数
             updateCompressParamsForAllPages();
         };
         
@@ -1460,29 +1432,10 @@ public class FFmpegBatchProcessor extends JFrame {
         ));
         
         // 创建单选按钮的副本，但仍然添加到同一个按钮组中以保持选择同步
-        JRadioButton cpuCopy = new JRadioButton("CPU (libx264)");
-        cpuCopy.setFont(NORMAL_FONT);
-        cpuCopy.setOpaque(false);
-        cpuCopy.setSelected(cpuRadioButton.isSelected());
-        cpuCopy.setActionCommand("cpu");
-        
-        JRadioButton nvencCopy = new JRadioButton("NVIDIA GPU (h264_nvenc)");
-        nvencCopy.setFont(NORMAL_FONT);
-        nvencCopy.setOpaque(false);
-        nvencCopy.setSelected(nvencRadioButton.isSelected());
-        nvencCopy.setActionCommand("nvenc");
-        
-        JRadioButton intelCopy = new JRadioButton("Intel GPU (h264_qsv)");
-        intelCopy.setFont(NORMAL_FONT);
-        intelCopy.setOpaque(false);
-        intelCopy.setSelected(intelRadioButton.isSelected());
-        intelCopy.setActionCommand("intel");
-        
-        JRadioButton amdCopy = new JRadioButton("AMD GPU (h264_amf)");
-        amdCopy.setFont(NORMAL_FONT);
-        amdCopy.setOpaque(false);
-        amdCopy.setSelected(amdRadioButton.isSelected());
-        amdCopy.setActionCommand("amd");
+        JRadioButton cpuCopy = createStyledRadioButton("CPU (libx264)", "cpu", cpuRadioButton.isSelected());
+        JRadioButton nvencCopy = createStyledRadioButton("NVIDIA GPU (h264_nvenc)", "nvenc", nvencRadioButton.isSelected());
+        JRadioButton intelCopy = createStyledRadioButton("Intel GPU (h264_qsv)", "intel", intelRadioButton.isSelected());
+        JRadioButton amdCopy = createStyledRadioButton("AMD GPU (h264_amf)", "amd", amdRadioButton.isSelected());
         
         accelerationGroup.add(cpuCopy);
         accelerationGroup.add(nvencCopy);
@@ -1517,6 +1470,126 @@ public class FFmpegBatchProcessor extends JFrame {
         amdCopy.addActionListener(paramSwitchListener);
         
         return panel;
+    }
+    
+    // 创建定制样式的单选按钮
+    private JRadioButton createStyledRadioButton(String text, String actionCommand, boolean selected) {
+        // 创建自定义按钮，覆盖所有绘制方法
+        JRadioButton button = new JRadioButton(text) {
+            @Override
+            public void paint(Graphics g) {
+                // 完全控制按钮的绘制，不调用super.paint
+                paintCustomButton(g);
+            }
+            
+            private void paintCustomButton(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                
+                // 计算各部分位置
+                Insets insets = getInsets();
+                int width = getWidth() - insets.left - insets.right;
+                int height = getHeight() - insets.top - insets.bottom;
+                
+                // 清除背景
+                if (isOpaque()) {
+                    g2.setColor(getBackground());
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                }
+                
+                // 绘制背景
+                if (isSelected()) {
+                    // 选中状态绘制渐变背景
+                    GradientPaint gp = new GradientPaint(
+                        0, 0, new Color(63, 81, 181, 80), 
+                        getWidth(), getHeight(), new Color(63, 81, 181, 60)
+                    );
+                    g2.setPaint(gp);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                    
+                    // 添加边框
+                    g2.setColor(new Color(63, 81, 181, 150));
+                    g2.setStroke(new BasicStroke(2f));
+                    g2.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 8, 8);
+                } else if (getModel().isRollover()) {
+                    // 鼠标悬停状态
+                    g2.setColor(new Color(63, 81, 181, 30));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                }
+                
+                // 获取字体度量用于文本布局
+                FontMetrics fm = g2.getFontMetrics(getFont());
+                
+                // 绘制文本 - 不再绘制圆形按钮
+                int textX = insets.left + 10; // 文本左边距
+                int textY = insets.top + (height + fm.getAscent() - fm.getDescent()) / 2; // 垂直居中
+                
+                if (isSelected()) {
+                    g2.setColor(new Color(25, 25, 112)); // 深蓝色
+                    // 选中状态使用粗体
+                    Font boldFont = getFont().deriveFont(Font.BOLD);
+                    g2.setFont(boldFont);
+                } else {
+                    g2.setColor(TEXT_COLOR);
+                }
+                
+                g2.drawString(getText(), textX, textY);
+                
+                // 如果禁用，绘制半透明覆盖层
+                if (!isEnabled()) {
+                    g2.setColor(new Color(255, 255, 255, 120));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                }
+                
+                g2.dispose();
+            }
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                // 不调用父类方法，完全自定义绘制
+            }
+            
+            @Override
+            protected void paintBorder(Graphics g) {
+                // 不绘制边框
+            }
+            
+            @Override
+            public Dimension getPreferredSize() {
+                FontMetrics fm = getFontMetrics(getFont());
+                int textWidth = fm.stringWidth(getText());
+                int width = 10 + textWidth + 10; // 左边距 + 文本宽度 + 右边距
+                int height = Math.max(super.getPreferredSize().height, 30); // 确保高度适当
+                return new Dimension(width, height);
+            }
+        };
+        
+        // 设置按钮样式
+        button.setFont(NORMAL_FONT);
+        button.setOpaque(false);
+        button.setSelected(selected);
+        button.setActionCommand(actionCommand);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setMargin(new Insets(8, 0, 8, 0));
+        
+        // 设置鼠标悬停光标
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        
+        // 添加选择状态监听
+        button.addChangeListener(e -> {
+            // 强制重绘
+            button.repaint();
+        });
+        
+        // 添加按钮模型监听器，确保状态变化时重绘
+        button.getModel().addChangeListener(e -> {
+            button.repaint();
+        });
+        
+        return button;
     }
     
     public static void main(String[] args) {

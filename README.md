@@ -56,12 +56,38 @@
 
 ## 技术特点
 
-本程序利用Java 21的新特性进行开发，包括：
+本程序利用Java 21的多项新特性，提高了代码质量和执行效率：
 
-- 使用Record类型存储和处理坐标参数，提高代码可读性和安全性
-- 采用文本块（Text Blocks）创建多行字符串，使FFmpeg命令生成更清晰
-- 利用模式匹配和箭头语法（Arrow Syntax）简化switch语句
-- 使用方法引用和Lambda表达式优化事件处理
+### 记录类型（Record Types）
+- 使用`record DelogoParams(int x, int y, int width, int height)`创建不可变的数据容器，用于存储和处理坐标参数
+- 记录类型自动提供构造器、访问器方法（x()、y()等）和标准方法（equals、hashCode、toString）
+- 与传统POJO相比，代码更简洁、更安全，并减少了样板代码
+
+### 文本块（Text Blocks）
+- 使用三引号（`"""..."""`）创建多行字符串，用于构建FFmpeg命令
+- 文本块保持了字符串的格式和缩进，使复杂的命令结构更清晰
+- 结合字符串格式化（`String.formatted`）动态生成命令参数
+
+### 方法引用和Lambda表达式
+- 使用方法引用（`this::updateLogFromQueue`）替代传统的匿名内部类
+- 通过Lambda表达式（`e -> updateCurrentPage(pageType)`）简化事件处理逻辑
+- 利用函数式编程特性使代码更简洁、更易于理解
+
+### 模式匹配和Switch表达式
+- 使用增强的switch表达式处理不同页面类型（`switch (currentPage) { case COMPRESS -> ... }`）
+- 通过箭头语法（Arrow Syntax）简化分支处理逻辑
+- 减少了冗余的break语句和模板代码
+
+### 增强的集合API和Stream操作
+- 使用集合工厂方法和Stream API进行数据处理和转换
+- 通过链式操作提高了代码可读性和处理效率
+
+### 并发处理优化
+- 利用`ConcurrentLinkedQueue`实现线程安全的日志消息队列
+- 通过`SwingUtilities.invokeLater`确保UI更新操作在EDT线程中执行
+- 在后台线程中执行耗时的FFmpeg处理，保持UI响应性
+
+这些现代Java特性不仅提高了代码质量和可维护性，还使程序在处理大量视频文件时更加高效和稳定。
 
 ## 常见问题解决
 
