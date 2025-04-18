@@ -86,3 +86,13 @@
 ## 联系方式
 
 如有问题或建议，请联系开发者：ocean.quan@wiitrans.com 
+
+## 
+### amd 加速
+h264_amf
+
+### intel 
+h264_qsv
+
+### nv
+h264_nvenc
