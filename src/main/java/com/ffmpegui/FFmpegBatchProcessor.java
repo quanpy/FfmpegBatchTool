@@ -4,6 +4,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
@@ -76,6 +77,14 @@ public class FFmpegBatchProcessor extends JFrame {
     private JTextField spliceDurationField;
     private JTextField spliceCompressParamsField;
     private JCheckBox useNvencCheckBox;
+    
+    // 硬件加速选择组件
+    private ButtonGroup accelerationGroup;
+    private JRadioButton cpuRadioButton;
+    private JRadioButton nvencRadioButton;
+    private JRadioButton intelRadioButton;
+    private JRadioButton amdRadioButton;
+    private JPanel accelerationPanel;
     
     // 页面容器
     private JPanel cardPanel;
@@ -155,6 +164,9 @@ public class FFmpegBatchProcessor extends JFrame {
         statusLabel.setFont(NORMAL_FONT);
         statusLabel.setForeground(TEXT_COLOR);
         
+        // 硬件加速选择组件
+        createAccelerationComponents();
+        
         // 使用支持中文显示良好的字体
         Font logFont = new Font("Microsoft YaHei Mono", Font.PLAIN, 12);
         if (isFontAvailable("Microsoft YaHei Mono")) {
@@ -198,16 +210,6 @@ public class FFmpegBatchProcessor extends JFrame {
         spliceDurationField.setToolTipText("视频拼接处理时长（秒），表示取第一个视频的结尾多少秒");
         spliceCompressParamsField = createStyledTextField();
         spliceCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
-        useNvencCheckBox = new JCheckBox("使用NVIDIA硬件加速");
-        useNvencCheckBox.setFont(NORMAL_FONT);
-        useNvencCheckBox.setOpaque(false);
-        useNvencCheckBox.addActionListener(e -> {
-            if (useNvencCheckBox.isSelected()) {
-                spliceCompressParamsField.setText(DEFAULT_NVENC_PARAMS);
-            } else {
-                spliceCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
-            }
-        });
         
         // 初始化页面布局管理器
         cardLayout = new CardLayout();
@@ -454,8 +456,13 @@ public class FFmpegBatchProcessor extends JFrame {
         descLabel.setForeground(new Color(90, 90, 90));
         descPanel.add(descLabel, BorderLayout.CENTER);
         
+        // 创建硬件加速选项面板的副本
+        JPanel accelerationPanelCopy = createAccelerationPanelCopy();
+        
+        // 添加硬件加速选项面板到原面板
         panel.add(commandPanel, BorderLayout.NORTH);
-        panel.add(descPanel, BorderLayout.CENTER);
+        panel.add(accelerationPanelCopy, BorderLayout.CENTER);
+        panel.add(descPanel, BorderLayout.SOUTH);
         return panel;
     }
     
@@ -506,8 +513,17 @@ public class FFmpegBatchProcessor extends JFrame {
         descLabel.setForeground(new Color(90, 90, 90));
         descPanel.add(descLabel, BorderLayout.CENTER);
         
+        // 创建硬件加速选项面板的副本
+        JPanel accelerationPanelCopy = createAccelerationPanelCopy();
+        
+        // 添加硬件加速选项到面板
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setOpaque(false);
+        centerPanel.add(accelerationPanelCopy, BorderLayout.NORTH);
+        centerPanel.add(descPanel, BorderLayout.CENTER);
+        
         panel.add(inputsPanel, BorderLayout.NORTH);
-        panel.add(descPanel, BorderLayout.CENTER);
+        panel.add(centerPanel, BorderLayout.CENTER);
         panel.add(tipPanel, BorderLayout.SOUTH);
         
         return panel;
@@ -553,8 +569,17 @@ public class FFmpegBatchProcessor extends JFrame {
         descLabel.setForeground(new Color(90, 90, 90));
         descPanel.add(descLabel, BorderLayout.CENTER);
         
+        // 创建硬件加速选项面板的副本
+        JPanel accelerationPanelCopy = createAccelerationPanelCopy();
+        
+        // 添加硬件加速选项到面板
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setOpaque(false);
+        centerPanel.add(accelerationPanelCopy, BorderLayout.NORTH);
+        centerPanel.add(descPanel, BorderLayout.CENTER);
+        
         panel.add(inputsPanel, BorderLayout.NORTH);
-        panel.add(descPanel, BorderLayout.CENTER);
+        panel.add(centerPanel, BorderLayout.CENTER);
         
         return panel;
     }
@@ -563,7 +588,7 @@ public class FFmpegBatchProcessor extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
         
-        JPanel inputsPanel = new JPanel(new GridLayout(3, 1, 0, 10));
+        JPanel inputsPanel = new JPanel(new GridLayout(2, 1, 0, 10));
         inputsPanel.setOpaque(false);
         inputsPanel.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
         
@@ -579,14 +604,8 @@ public class FFmpegBatchProcessor extends JFrame {
         durationPanel.add(createStyledLabel("拼接处理时长(秒):"), BorderLayout.WEST);
         durationPanel.add(spliceDurationField, BorderLayout.CENTER);
         
-        // 硬件加速选项面板
-        JPanel nvencPanel = new JPanel(new BorderLayout(10, 0));
-        nvencPanel.setOpaque(false);
-        nvencPanel.add(useNvencCheckBox, BorderLayout.WEST);
-        
         inputsPanel.add(compressPanel);
         inputsPanel.add(durationPanel);
-        inputsPanel.add(nvencPanel);
         
         // 添加说明面板
         JPanel descPanel = new JPanel(new BorderLayout());
@@ -612,8 +631,17 @@ public class FFmpegBatchProcessor extends JFrame {
         tipLabel.setIcon(createInfoIcon());
         tipPanel.add(tipLabel, BorderLayout.CENTER);
         
+        // 创建硬件加速选项面板的副本
+        JPanel accelerationPanelCopy = createAccelerationPanelCopy();
+        
+        // 添加硬件加速选项到面板
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setOpaque(false);
+        centerPanel.add(accelerationPanelCopy, BorderLayout.NORTH);
+        centerPanel.add(descPanel, BorderLayout.CENTER);
+        
         panel.add(inputsPanel, BorderLayout.NORTH);
-        panel.add(descPanel, BorderLayout.CENTER);
+        panel.add(centerPanel, BorderLayout.CENTER);
         panel.add(tipPanel, BorderLayout.SOUTH);
         
         return panel;
@@ -1310,6 +1338,185 @@ public class FFmpegBatchProcessor extends JFrame {
             }
         }
         return false;
+    }
+    
+    // 创建硬件加速选择组件
+    private void createAccelerationComponents() {
+        accelerationGroup = new ButtonGroup();
+        
+        cpuRadioButton = new JRadioButton("CPU (libx264)");
+        cpuRadioButton.setFont(NORMAL_FONT);
+        cpuRadioButton.setOpaque(false);
+        cpuRadioButton.setSelected(true);
+        cpuRadioButton.setActionCommand("cpu");
+        
+        nvencRadioButton = new JRadioButton("NVIDIA GPU (h264_nvenc)");
+        nvencRadioButton.setFont(NORMAL_FONT);
+        nvencRadioButton.setOpaque(false);
+        nvencRadioButton.setActionCommand("nvenc");
+        
+        intelRadioButton = new JRadioButton("Intel GPU (h264_qsv)");
+        intelRadioButton.setFont(NORMAL_FONT);
+        intelRadioButton.setOpaque(false);
+        intelRadioButton.setActionCommand("intel");
+        
+        amdRadioButton = new JRadioButton("AMD GPU (h264_amf)");
+        amdRadioButton.setFont(NORMAL_FONT);
+        amdRadioButton.setOpaque(false);
+        amdRadioButton.setActionCommand("amd");
+        
+        accelerationGroup.add(cpuRadioButton);
+        accelerationGroup.add(nvencRadioButton);
+        accelerationGroup.add(intelRadioButton);
+        accelerationGroup.add(amdRadioButton);
+        
+        accelerationPanel = new JPanel();
+        accelerationPanel.setOpaque(false);
+        accelerationPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        accelerationPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(ACCENT_COLOR, 1, true), 
+            "硬件加速选项", 
+            0, 
+            0, 
+            NORMAL_FONT, 
+            TEXT_COLOR
+        ));
+        
+        accelerationPanel.add(cpuRadioButton);
+        accelerationPanel.add(nvencRadioButton);
+        accelerationPanel.add(intelRadioButton);
+        accelerationPanel.add(amdRadioButton);
+        
+        // 添加切换参数的监听器
+        ActionListener paramSwitchListener = e -> {
+            // 记录选中的按钮的ActionCommand
+            String command = ((JRadioButton)e.getSource()).getActionCommand();
+            
+            // 根据选中的按钮同步更新主按钮组的选中状态
+            switch (command) {
+                case "cpu" -> cpuRadioButton.setSelected(true);
+                case "nvenc" -> nvencRadioButton.setSelected(true);
+                case "intel" -> intelRadioButton.setSelected(true);
+                case "amd" -> amdRadioButton.setSelected(true);
+            }
+            
+            // 更新所有页面的压缩参数
+            updateCompressParamsForAllPages();
+        };
+        
+        cpuRadioButton.addActionListener(paramSwitchListener);
+        nvencRadioButton.addActionListener(paramSwitchListener);
+        intelRadioButton.addActionListener(paramSwitchListener);
+        amdRadioButton.addActionListener(paramSwitchListener);
+    }
+    
+    // 根据所选硬件加速选项更新所有页面的压缩参数
+    private void updateCompressParamsForAllPages() {
+        String params = getSelectedAccelerationParams();
+        
+        // 更新各页面的压缩参数
+        compressParamsField.setText(params);
+        subtitleCompressParamsField.setText(params);
+        trailerCompressParamsField.setText(params);
+        spliceCompressParamsField.setText(params);
+        
+        // 添加日志记录便于调试
+        System.out.println("更新压缩参数: " + params);
+    }
+    
+    // 获取当前选择的加速器对应的参数
+    private String getSelectedAccelerationParams() {
+        ButtonModel selectedModel = accelerationGroup.getSelection();
+        if (selectedModel == null) {
+            return DEFAULT_COMPRESS_PARAMS;
+        }
+        
+        String actionCommand = selectedModel.getActionCommand();
+        switch (actionCommand) {
+            case "nvenc":
+                return DEFAULT_NVENC_PARAMS;
+            case "intel":
+                return DEFAULT_INTEL_PARAMS;
+            case "amd":
+                return DEFAULT_AMD_PARAMS;
+            case "cpu":
+            default:
+                return DEFAULT_COMPRESS_PARAMS;
+        }
+    }
+    
+    // 创建硬件加速面板副本
+    private JPanel createAccelerationPanelCopy() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        panel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(ACCENT_COLOR, 1, true), 
+            "硬件加速选项", 
+            0, 
+            0, 
+            NORMAL_FONT, 
+            TEXT_COLOR
+        ));
+        
+        // 创建单选按钮的副本，但仍然添加到同一个按钮组中以保持选择同步
+        JRadioButton cpuCopy = new JRadioButton("CPU (libx264)");
+        cpuCopy.setFont(NORMAL_FONT);
+        cpuCopy.setOpaque(false);
+        cpuCopy.setSelected(cpuRadioButton.isSelected());
+        cpuCopy.setActionCommand("cpu");
+        
+        JRadioButton nvencCopy = new JRadioButton("NVIDIA GPU (h264_nvenc)");
+        nvencCopy.setFont(NORMAL_FONT);
+        nvencCopy.setOpaque(false);
+        nvencCopy.setSelected(nvencRadioButton.isSelected());
+        nvencCopy.setActionCommand("nvenc");
+        
+        JRadioButton intelCopy = new JRadioButton("Intel GPU (h264_qsv)");
+        intelCopy.setFont(NORMAL_FONT);
+        intelCopy.setOpaque(false);
+        intelCopy.setSelected(intelRadioButton.isSelected());
+        intelCopy.setActionCommand("intel");
+        
+        JRadioButton amdCopy = new JRadioButton("AMD GPU (h264_amf)");
+        amdCopy.setFont(NORMAL_FONT);
+        amdCopy.setOpaque(false);
+        amdCopy.setSelected(amdRadioButton.isSelected());
+        amdCopy.setActionCommand("amd");
+        
+        accelerationGroup.add(cpuCopy);
+        accelerationGroup.add(nvencCopy);
+        accelerationGroup.add(intelCopy);
+        accelerationGroup.add(amdCopy);
+        
+        panel.add(cpuCopy);
+        panel.add(nvencCopy);
+        panel.add(intelCopy);
+        panel.add(amdCopy);
+        
+        // 添加切换参数的监听器
+        ActionListener paramSwitchListener = e -> {
+            // 记录选中的按钮的ActionCommand
+            String command = ((JRadioButton)e.getSource()).getActionCommand();
+            
+            // 根据选中的按钮同步更新主按钮组的选中状态
+            switch (command) {
+                case "cpu" -> cpuRadioButton.setSelected(true);
+                case "nvenc" -> nvencRadioButton.setSelected(true);
+                case "intel" -> intelRadioButton.setSelected(true);
+                case "amd" -> amdRadioButton.setSelected(true);
+            }
+            
+            // 更新所有页面的压缩参数
+            updateCompressParamsForAllPages();
+        };
+        
+        cpuCopy.addActionListener(paramSwitchListener);
+        nvencCopy.addActionListener(paramSwitchListener);
+        intelCopy.addActionListener(paramSwitchListener);
+        amdCopy.addActionListener(paramSwitchListener);
+        
+        return panel;
     }
     
     public static void main(String[] args) {
