@@ -156,8 +156,8 @@ public class FFmpegBatchProcessor extends JFrame {
         // 设置窗口背景颜色
         getContentPane().setBackground(BACKGROUND_COLOR);
 
-        addLogMessage("====   start success.   =====");
-        addLogMessage("把这段加到压制参数前面 -vf \"scale=1080:1920\" 可将4K/2k视频转为竖版1080p");
+//        addLogMessage("====   start success.   =====");
+//        addLogMessage("把这段加到压制参数前面 -vf \"scale=1080:1920\" 可将4K/2k视频转为竖版1080p");
 
     }
 
@@ -578,7 +578,7 @@ public class FFmpegBatchProcessor extends JFrame {
         descPanel.setOpaque(false);
         descPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel descLabel = new JLabel("此功能用于去除视频末尾的\"未完待续\"等水印，处理后的文件会添加\"_w\"后缀");
+        JLabel descLabel = new JLabel("<html>此功能用于去除视频末尾的\"未完待续\"等水印，需要同时处理小字把小字框放在前面用&分隔，<br>最后一个框为未完待续框，处理后的文件会添加\"_w\"后缀</html>");
         descLabel.setFont(NORMAL_FONT);
         descLabel.setForeground(new Color(90, 90, 90));
         descPanel.add(descLabel, BorderLayout.CENTER);
@@ -781,13 +781,18 @@ public class FFmpegBatchProcessor extends JFrame {
         }).start();
     }
 
+    /**
+     * @author Ocean
+     * @date: 2025/4/21 8:46
+     * @description: 去 未完待续 界面操作
+     */
     private void processRemoveTrailer(String folderPath) {
         String delogoParams = trailerDelogoParamsField.getText().trim();
         String lastDuration = trailerDurationField.getText().trim();
         String ffmpegCommand = trailerCompressParamsField.getText().trim();
 
         // 验证去水印参数格式
-        if (!delogoParams.isEmpty() && !isValidDelogoParams(delogoParams)) {
+        if (!delogoParams.isEmpty() && !isValidMultipleDelogoParams(delogoParams)) {
             JOptionPane.showMessageDialog(this,
                     "去未完待续参数格式不正确，请使用x,y,w,h格式（例如：98,1169,879,155）",
                     "错误", JOptionPane.ERROR_MESSAGE);
@@ -1275,17 +1280,44 @@ public class FFmpegBatchProcessor extends JFrame {
                 // 根据是否指定了结尾处理时长来构建不同的delogo参数
                 String delogoFilter;
                 if (endTime != null && !lastDuration.isEmpty()) {
-                    DelogoParams params = DelogoParams.parse(delogoParams);
-
                     double duration = Double.parseDouble(endTime);
                     double lastDurationValue = Double.parseDouble(lastDuration);
                     double startTime = Math.max(0, duration - lastDurationValue);
+//                   这里是去未完待续
+                    if (!delogoParams.contains("&")) {
+                        // 单个区域
+                        DelogoParams params = DelogoParams.parse(delogoParams);
 
-                    addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
+                        addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
 
-                    delogoFilter = """
+                        delogoFilter = """
                             "delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'" """
-                            .formatted(params.x(), params.y(), params.width(), params.height(), startTime, duration);
+                                .formatted(params.x(), params.y(), params.width(), params.height(), startTime, duration);
+                    }else {
+                        // 多个区域
+                        List<DelogoParams> paramsList = DelogoParams.parseList(delogoParams);
+                        List<String> strList = new ArrayList<>(paramsList.size());
+                        for (int i = 0; i < paramsList.size() - 1; i++) {
+                            DelogoParams params = paramsList.get(i);
+                            String delogo = """
+                                    delogo=x=%d:y=%d:w=%d:h=%d""".formatted(params.x(), params.y(), params.width(), params.height());
+//                            sb.append(delogoFilter.trim());
+                            strList.add(delogo);
+                        }
+                        // 最后一个是未完待续框
+                        DelogoParams lastParams = paramsList.getLast();
+
+                        addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
+                        String delogoLast = """
+                            delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'"""
+                                .formatted(lastParams.x(), lastParams.y(), lastParams.width(), lastParams.height(), startTime, duration);
+                        strList.add(delogoLast);
+
+                        // join
+                        delogoFilter = """
+                                "%s" """.formatted(String.join(",", strList));
+                    }
+
                 } else {
                     // 这里是去小字
                     if (!delogoParams.contains("&")) {
