@@ -95,6 +95,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private static final String DEFAULT_NVENC_PARAMS = "-c:v h264_nvenc -profile:v high -b:v 8000k -crf 23 -y";
     private static final String DEFAULT_INTEL_PARAMS = "-c:v h264_qsv  -b:v 8000k -crf 23 -y";
     private static final String DEFAULT_AMD_PARAMS = "-c:v h264_amf  -b:v 8000k -crf 23 -y";
+    private static final String DEFAULT_UI_PARAMS = DEFAULT_INTEL_PARAMS;
 
     // 记录类型存储解析后的坐标参数
     private record DelogoParams(int x, int y, int width, int height) {
@@ -200,13 +201,13 @@ public class FFmpegBatchProcessor extends JFrame {
 
         // 初始化转小页面的输入字段
         compressParamsField = createStyledTextField();
-        compressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
+        compressParamsField.setText(DEFAULT_UI_PARAMS);
 
         // 初始化去小字页面的输入字段
         subtitleDelogoParamsField = createStyledTextField();
         subtitleDelogoParamsField.setToolTipText("输入格式：x,y,w,h （例如：98,1169,879,155）注意：涂抹边界不要紧贴视频边界");
         subtitleCompressParamsField = createStyledTextField();
-        subtitleCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
+        subtitleCompressParamsField.setText(DEFAULT_UI_PARAMS);
 
         // 初始化去未完待续页面的输入字段
         trailerDelogoParamsField = createStyledTextField();
@@ -215,14 +216,14 @@ public class FFmpegBatchProcessor extends JFrame {
         trailerDurationField.setText("2.2");
         trailerDurationField.setToolTipText("视频结尾处理时长（秒），如2.2表示处理视频最后2.2秒");
         trailerCompressParamsField = createStyledTextField();
-        trailerCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
+        trailerCompressParamsField.setText(DEFAULT_UI_PARAMS);
 
         // 初始化视频拼接页面的输入字段
         spliceDurationField = createStyledTextField();
         spliceDurationField.setText("1.5");
         spliceDurationField.setToolTipText("视频拼接处理时长（秒），表示取第一个视频的结尾多少秒");
         spliceCompressParamsField = createStyledTextField();
-        spliceCompressParamsField.setText(DEFAULT_COMPRESS_PARAMS);
+        spliceCompressParamsField.setText(DEFAULT_UI_PARAMS);
 
         // 初始化页面布局管理器
         cardLayout = new CardLayout();
