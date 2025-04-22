@@ -1218,6 +1218,12 @@ public class FFmpegBatchProcessor extends JFrame {
             return;
         }
 
+        // TODO 生成在 OK 文件夹中
+        File okFolder = new File(folder, "OK");
+        if (!okFolder.exists()) {
+            okFolder.mkdir();
+        }
+
         // 设置进度条
         SwingUtilities.invokeLater(() -> {
             progressBar.setMaximum(mediaFiles.size());
@@ -1291,9 +1297,9 @@ public class FFmpegBatchProcessor extends JFrame {
                         addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
 
                         delogoFilter = """
-                            "delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'" """
+                                "delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'" """
                                 .formatted(params.x(), params.y(), params.width(), params.height(), startTime, duration);
-                    }else {
+                    } else {
                         // 多个区域
                         List<DelogoParams> paramsList = DelogoParams.parseList(delogoParams);
                         List<String> strList = new ArrayList<>(paramsList.size());
@@ -1309,7 +1315,7 @@ public class FFmpegBatchProcessor extends JFrame {
 
                         addLogMessage(String.format("应用水印去除：从 %.2f 秒到 %.2f 秒", startTime, duration));
                         String delogoLast = """
-                            delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'"""
+                                delogo=x=%d:y=%d:w=%d:h=%d:enable='between(t,%.2f,%.2f)'"""
                                 .formatted(lastParams.x(), lastParams.y(), lastParams.width(), lastParams.height(), startTime, duration);
                         strList.add(delogoLast);
 
@@ -1325,12 +1331,12 @@ public class FFmpegBatchProcessor extends JFrame {
                         DelogoParams params = DelogoParams.parse(delogoParams);
                         delogoFilter = """
                                 "delogo=x=%d:y=%d:w=%d:h=%d" """.formatted(params.x(), params.y(), params.width(), params.height());
-                    }else {
+                    } else {
                         // 多个区域
                         List<DelogoParams> paramsList = DelogoParams.parseList(delogoParams);
                         List<String> strList = new ArrayList<>(paramsList.size());
                         for (DelogoParams params : paramsList) {
-                             String delogo = """
+                            String delogo = """
                                     delogo=x=%d:y=%d:w=%d:h=%d""".formatted(params.x(), params.y(), params.width(), params.height());
 //                            sb.append(delogoFilter.trim());
                             strList.add(delogo);
@@ -1397,7 +1403,16 @@ public class FFmpegBatchProcessor extends JFrame {
         if (dotIndex > 0) {
             String basePath = inputPath.substring(0, dotIndex);
             String extension = inputPath.substring(dotIndex);
-            return basePath + "_" + suffix + extension;
+            int gangIndex = inputPath.lastIndexOf(File.separator);
+            if (gangIndex > 0) {
+                String baseFolderPath = basePath.substring(0, gangIndex);
+                // 这个里面带一个 /
+                String baseName = basePath.substring(gangIndex + 1);
+
+                return baseFolderPath + File.separator + "OK" + File.separator + baseName + "_" + suffix + extension;
+            } else{
+                return basePath + "_" + suffix + extension;
+            }
         } else {
             return inputPath + "_" + suffix;
         }
@@ -1409,7 +1424,7 @@ public class FFmpegBatchProcessor extends JFrame {
                 lowerName.endsWith(".mkv") || lowerName.endsWith(".mov") ||
                 lowerName.endsWith(".wmv") || lowerName.endsWith(".flv") ||
                 lowerName.endsWith(".mp3") || lowerName.endsWith(".wav") ||
-                lowerName.endsWith(".webm") || lowerName.endsWith(".m4a");
+                lowerName.endsWith(".webm") || lowerName.endsWith(".m4a") || lowerName.endsWith(".mxf");
     }
 
     // 检查字体是否可用
