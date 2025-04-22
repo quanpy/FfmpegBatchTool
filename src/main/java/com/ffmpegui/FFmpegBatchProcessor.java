@@ -1409,7 +1409,7 @@ public class FFmpegBatchProcessor extends JFrame {
                 // 这个里面带一个 /
                 String baseName = basePath.substring(gangIndex + 1);
 
-                return baseFolderPath + File.separator + "OK" + File.separator + baseName + "_" + suffix + extension;
+                return baseFolderPath + File.separator + "OK" + File.separator + baseName + "_" + suffix + ".mp4";
             } else{
                 return basePath + "_" + suffix + extension;
             }
