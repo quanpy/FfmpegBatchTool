@@ -45,7 +45,8 @@ public class FFmpegBatchProcessor extends JFrame {
         COMPRESS("转小"),
         REMOVE_SUBTITLE("去小字"),
         REMOVE_TRAILER("去未完待续"),
-        VIDEO_SPLICE("视频拼接");
+        VIDEO_SPLICE("视频拼接"),
+        VIDEO_SPLICE_HEAD("片头拼接");
 
         private final String title;
 
@@ -66,6 +67,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private JPanel removeSubtitlePanel;
     private JPanel removeTrailerPanel;
     private JPanel videoSplicePanel;
+    private JPanel videoSpliceHeadPanel;
 
     // 各页面的输入字段
     private JTextField compressParamsField;
@@ -76,6 +78,8 @@ public class FFmpegBatchProcessor extends JFrame {
     private JTextField trailerCompressParamsField;
     private JTextField spliceDurationField;
     private JTextField spliceCompressParamsField;
+    private JTextField spliceHeadDurationField;
+    private JTextField spliceHeadCompressParamsField;
     private JCheckBox useNvencCheckBox;
 
     // 硬件加速选择组件
@@ -224,6 +228,13 @@ public class FFmpegBatchProcessor extends JFrame {
         spliceDurationField.setToolTipText("视频拼接处理时长（秒），表示取第一个视频的结尾多少秒");
         spliceCompressParamsField = createStyledTextField();
         spliceCompressParamsField.setText(DEFAULT_UI_PARAMS);
+
+        // 初始化片头拼接页面的输入字段
+        spliceHeadDurationField = createStyledTextField();
+        spliceHeadDurationField.setText("1.5");
+        spliceHeadDurationField.setToolTipText("片头拼接处理时长（秒），表示取第一个视频的前多少秒");
+        spliceHeadCompressParamsField = createStyledTextField();
+        spliceHeadCompressParamsField.setText(DEFAULT_UI_PARAMS);
 
         // 初始化页面布局管理器
         cardLayout = new CardLayout();
@@ -389,11 +400,15 @@ public class FFmpegBatchProcessor extends JFrame {
         // 创建视频拼接页面
         videoSplicePanel = createVideoSplicePanel();
 
+        // 创建片头拼接页面
+        videoSpliceHeadPanel = createVideoSpliceHeadPanel();
+
         // 添加页面到卡片布局
         cardPanel.add(compressPanel, PageType.COMPRESS.name());
         cardPanel.add(removeSubtitlePanel, PageType.REMOVE_SUBTITLE.name());
         cardPanel.add(removeTrailerPanel, PageType.REMOVE_TRAILER.name());
         cardPanel.add(videoSplicePanel, PageType.VIDEO_SPLICE.name());
+        cardPanel.add(videoSpliceHeadPanel, PageType.VIDEO_SPLICE_HEAD.name());
 
         // 创建控制面板（包含按钮和状态）
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -661,6 +676,69 @@ public class FFmpegBatchProcessor extends JFrame {
         return panel;
     }
 
+    private JPanel createVideoSpliceHeadPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
+
+        JPanel inputsPanel = new JPanel(new GridLayout(2, 1, 0, 10));
+        inputsPanel.setOpaque(false);
+        inputsPanel.setBorder(BorderFactory.createEmptyBorder(15, 10, 15, 10));
+
+        // 压缩参数面板
+        JPanel compressPanel = new JPanel(new BorderLayout(10, 0));
+        compressPanel.setOpaque(false);
+        compressPanel.add(createStyledLabel("压缩参数:"), BorderLayout.WEST);
+        compressPanel.add(spliceHeadCompressParamsField, BorderLayout.CENTER);
+
+        // 拼接时长面板
+        JPanel durationPanel = new JPanel(new BorderLayout(10, 0));
+        durationPanel.setOpaque(false);
+        durationPanel.add(createStyledLabel("拼接处理时长(秒):"), BorderLayout.WEST);
+        durationPanel.add(spliceHeadDurationField, BorderLayout.CENTER);
+
+        inputsPanel.add(compressPanel);
+        inputsPanel.add(durationPanel);
+
+        // 添加说明面板
+        JPanel descPanel = new JPanel(new BorderLayout());
+        descPanel.setOpaque(false);
+        descPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JLabel descLabel = new JLabel("<html>此功能用于拼接两组视频，文件夹中需要有原视频和带有_no_sub后缀的视频<br>将取原视频的前半部分与_no_sub视频的后半部分拼接，生成到OK文件夹中</html>");
+        descLabel.setFont(NORMAL_FONT);
+        descLabel.setForeground(new Color(90, 90, 90));
+        descPanel.add(descLabel, BorderLayout.CENTER);
+
+        // 提示面板
+        JPanel tipPanel = new JPanel(new BorderLayout(5, 0));
+        tipPanel.setOpaque(false);
+        tipPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, ACCENT_COLOR),
+                BorderFactory.createEmptyBorder(15, 10, 10, 10)
+        ));
+
+        JLabel tipLabel = new JLabel("提示：文件夹中需要有成对的视频，第二个视频名称需要在第一个基础上加上_no_sub后缀");
+        tipLabel.setFont(NORMAL_FONT);
+        tipLabel.setForeground(new Color(32, 61, 135));
+        tipLabel.setIcon(createInfoIcon());
+        tipPanel.add(tipLabel, BorderLayout.CENTER);
+
+        // 创建硬件加速选项面板的副本
+        JPanel accelerationPanelCopy = createAccelerationPanelCopy();
+
+        // 添加硬件加速选项到面板
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setOpaque(false);
+        centerPanel.add(accelerationPanelCopy, BorderLayout.NORTH);
+        centerPanel.add(descPanel, BorderLayout.CENTER);
+
+        panel.add(inputsPanel, BorderLayout.NORTH);
+        panel.add(centerPanel, BorderLayout.CENTER);
+        panel.add(tipPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
     private ImageIcon createInfoIcon() {
         // 创建信息图标
         int size = 16;
@@ -718,6 +796,7 @@ public class FFmpegBatchProcessor extends JFrame {
                 case REMOVE_SUBTITLE -> processRemoveSubtitle(folderPath);
                 case REMOVE_TRAILER -> processRemoveTrailer(folderPath);
                 case VIDEO_SPLICE -> processVideoSplice(folderPath);
+                case VIDEO_SPLICE_HEAD -> processVideoSpliceHead(folderPath);
             }
         });
     }
@@ -869,6 +948,43 @@ public class FFmpegBatchProcessor extends JFrame {
         }).start();
     }
 
+    private void processVideoSpliceHead(String folderPath) {
+        String headDuration = spliceHeadDurationField.getText().trim();
+        String ffmpegCommand = spliceHeadCompressParamsField.getText().trim();
+
+        // 验证片头处理时长格式
+        if (!headDuration.isEmpty()) {
+            try {
+                Double.parseDouble(headDuration);
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this,
+                        "片头拼接处理时长必须是有效的数字（秒）", "错误", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
+        // 禁用按钮防止重复点击
+        processButton.setEnabled(false);
+
+        // 清空日志
+        logArea.setText("");
+
+        addLogMessage("开始片头拼接处理...");
+
+        // 在后台线程中执行处理
+        new Thread(() -> {
+            try {
+                processVideoSpliceHeadFiles(folderPath, ffmpegCommand, headDuration);
+            } finally {
+                SwingUtilities.invokeLater(() -> {
+                    processButton.setEnabled(true);
+                    statusLabel.setText("处理完成");
+                    progressBar.setValue(100);
+                });
+            }
+        }).start();
+    }
+
     private void processVideoSpliceFiles(String folderPath, String ffmpegArgs, String lastDuration) {
         File folder = new File(folderPath);
         if (!folder.exists() || !folder.isDirectory()) {
@@ -956,6 +1072,203 @@ public class FFmpegBatchProcessor extends JFrame {
             SwingUtilities.invokeLater(() -> {
                 progressBar.setValue(currentCount);
             });
+        }
+    }
+
+    private void processVideoSpliceHeadFiles(String folderPath, String ffmpegArgs, String headDuration) {
+        File folder = new File(folderPath);
+        if (!folder.exists() || !folder.isDirectory()) {
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this, 
+                    "指定的路径不是有效的文件夹", "错误", JOptionPane.ERROR_MESSAGE);
+                statusLabel.setText("错误：无效的文件夹路径");
+                processButton.setEnabled(true);
+            });
+            return;
+        }
+        
+        File[] files = folder.listFiles();
+        if (files == null || files.length == 0) {
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this, 
+                    "文件夹为空，没有要处理的文件", "警告", JOptionPane.WARNING_MESSAGE);
+                statusLabel.setText("警告：文件夹为空");
+                processButton.setEnabled(true);
+            });
+            return;
+        }
+        
+        // 找出所有没有_no_sub后缀的媒体文件
+        List<File> originalFiles = new ArrayList<>();
+        for (File file : files) {
+            if (file.isFile() && isMediaFile(file.getName()) && !file.getName().contains("_no_sub")) {
+                // 检查是否存在对应的_no_sub文件
+                String noSubFileName = getNoSubFileName(file.getName());
+                File noSubFile = new File(folder, noSubFileName);
+                if (noSubFile.exists()) {
+                    originalFiles.add(file);
+                }
+            }
+        }
+        
+        if (originalFiles.isEmpty()) {
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this, 
+                    "文件夹中没有找到配对的媒体文件（需要有原文件和带_no_sub后缀的文件）", 
+                    "警告", JOptionPane.WARNING_MESSAGE);
+                statusLabel.setText("警告：没有找到配对的媒体文件");
+                processButton.setEnabled(true);
+            });
+            return;
+        }
+        
+        // 确保输出目录存在
+        File okFolder = new File(folder, "OK");
+        if (!okFolder.exists()) {
+            okFolder.mkdir();
+        }
+        
+        // 设置进度条
+        SwingUtilities.invokeLater(() -> {
+            progressBar.setMaximum(originalFiles.size());
+            progressBar.setValue(0);
+        });
+        
+        // 处理每个文件
+        int count = 0;
+        for (File file : originalFiles) {
+            final int currentCount = ++count;
+            final String fileName = file.getName();
+            
+            SwingUtilities.invokeLater(() -> {
+                statusLabel.setText("处理中: " + fileName + " (" + currentCount + "/" + originalFiles.size() + ")");
+                progressBar.setValue(currentCount - 1);
+            });
+            
+            try {
+                processVideoSpliceHeadFile(file, folder, okFolder, ffmpegArgs, headDuration);
+            } catch (Exception e) {
+                final String errorMessage = "处理文件 " + fileName + " 时出错: " + e.getMessage();
+                SwingUtilities.invokeLater(() -> {
+                    statusLabel.setText("错误: " + fileName);
+                });
+                addLogMessage(errorMessage);
+                addLogMessage(e.toString());
+                for (StackTraceElement element : e.getStackTrace()) {
+                    addLogMessage(element.toString());
+                }
+            }
+            
+            SwingUtilities.invokeLater(() -> {
+                progressBar.setValue(currentCount);
+            });
+        }
+    }
+    
+    private void processVideoSpliceHeadFile(File originalFile, File inputFolder, File outputFolder, 
+                                       String ffmpegArgs, String headDuration) throws Exception {
+        String originalPath = originalFile.getAbsolutePath();
+        String fileName = originalFile.getName();
+        String noSubFileName = getNoSubFileName(fileName);
+        File noSubFile = new File(inputFolder, noSubFileName);
+        
+        if (!noSubFile.exists()) {
+            throw new Exception("找不到对应的无字幕文件: " + noSubFileName);
+        }
+        
+        String noSubPath = noSubFile.getAbsolutePath();
+        
+        // 获取视频时长
+        String endTime = getVideoDuration(originalPath);
+        addLogMessage("视频总时长: " + endTime + " 秒");
+        
+        double duration = Double.parseDouble(endTime);
+        double headDurationValue = Double.parseDouble(headDuration);
+        
+        // 确保片头时长不超过总时长
+        headDurationValue = Math.min(headDurationValue, duration);
+        
+        addLogMessage(String.format("拼接点: %.2f 秒，将取原视频的前 %.2f 秒和无字幕视频的后 %.2f 秒进行拼接", 
+                        headDurationValue, headDurationValue, duration - headDurationValue));
+        
+        // 临时文件路径
+        String tempDir = System.getProperty("java.io.tmpdir");
+        File tempPart1 = new File(tempDir, "temp_head_part1_" + System.currentTimeMillis() + ".mp4");
+        File tempPart2 = new File(tempDir, "temp_head_part2_" + System.currentTimeMillis() + ".mp4");
+        
+        // 输出文件路径
+        String outputFileName = "head_spliced_" + fileName;
+        File outputFile = new File(outputFolder, outputFileName);
+        
+        try {
+            // 1. 切割原视频的前部分
+            addLogMessage("正在切割原视频的前部分...");
+            List<String> command1 = new ArrayList<>();
+            command1.add("ffmpeg");
+            command1.add("-i");
+            command1.add(originalPath);
+            command1.add("-t");
+            command1.add(String.format("%.2f", headDurationValue));
+            
+            // 添加用户指定的参数
+            String[] args = ffmpegArgs.split("\\s+");
+            for (String arg : args) {
+                if (!arg.trim().isEmpty() && !arg.contains("-y")) {
+                    command1.add(arg.trim());
+                }
+            }
+            
+            command1.add("-y");
+            command1.add(tempPart1.getAbsolutePath());
+            
+            executeCommand(command1);
+            
+            // 2. 切割无字幕视频的后部分
+            addLogMessage("正在切割无字幕视频的后部分...");
+            List<String> command2 = new ArrayList<>();
+            command2.add("ffmpeg");
+            command2.add("-i");
+            command2.add(noSubPath);
+            command2.add("-ss");
+            command2.add(String.format("%.2f", headDurationValue));
+            
+            // 添加用户指定的参数
+            for (String arg : args) {
+                if (!arg.trim().isEmpty() && !arg.contains("-y")) {
+                    command2.add(arg.trim());
+                }
+            }
+            
+            command2.add("-y");
+            command2.add(tempPart2.getAbsolutePath());
+            
+            executeCommand(command2);
+            
+            // 3. 合并两个部分
+            addLogMessage("正在合并视频...");
+            List<String> command3 = new ArrayList<>();
+            command3.add("ffmpeg");
+            command3.add("-i");
+            command3.add(tempPart1.getAbsolutePath());
+            command3.add("-i");
+            command3.add(tempPart2.getAbsolutePath());
+            command3.add("-filter_complex");
+            command3.add("[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]");
+            command3.add("-map");
+            command3.add("[v]");
+            command3.add("-map");
+            command3.add("[a]");
+            command3.add("-y");
+            command3.add(outputFile.getAbsolutePath());
+            
+            executeCommand(command3);
+            
+            addLogMessage("成功处理文件: " + fileName);
+            
+        } finally {
+            // 删除临时文件
+            if (tempPart1.exists()) tempPart1.delete();
+            if (tempPart2.exists()) tempPart2.delete();
         }
     }
 
@@ -1489,6 +1802,7 @@ public class FFmpegBatchProcessor extends JFrame {
         subtitleCompressParamsField.setText(params);
         trailerCompressParamsField.setText(params);
         spliceCompressParamsField.setText(params);
+        spliceHeadCompressParamsField.setText(params);
 
         // 添加日志记录便于调试
         System.out.println("更新压缩参数: " + params);
