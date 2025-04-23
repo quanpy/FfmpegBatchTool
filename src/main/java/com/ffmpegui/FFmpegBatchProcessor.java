@@ -1228,8 +1228,13 @@ public class FFmpegBatchProcessor extends JFrame {
             concatCommand.add("0");
             concatCommand.add("-i");
             concatCommand.add(listFile.getAbsolutePath());
-            concatCommand.add("-c");
-            concatCommand.add("copy");
+            // 添加用户指定的参数
+            String[] args = ffmpegArgs.split("\\s+");
+            for (String arg : args) {
+                if (!arg.trim().isEmpty() && !arg.contains("-y")) {
+                    concatCommand.add(arg.trim());
+                }
+            }
             concatCommand.add("-y");
             concatCommand.add(outputFile.getAbsolutePath());
             
