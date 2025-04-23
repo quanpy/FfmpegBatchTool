@@ -1209,33 +1209,40 @@ public class FFmpegBatchProcessor extends JFrame {
             // 最后进行视频合并
             addLogMessage("正在合并视频片段...");
             
-            // 创建临时文件列表
-            File listFile = new File(tempDir, "concat_list_" + System.currentTimeMillis() + ".txt");
-            tempFiles.add(listFile);
-            
-            // 写入文件列表
-            try (java.io.PrintWriter writer = new java.io.PrintWriter(listFile)) {
-                for (String filePath : concatFiles) {
-                    writer.println("file '" + filePath.replace("\\", "\\\\") + "'");
-                }
-            }
-            
-            // 使用concat demuxer合并视频（适用于相同编码格式的视频）
+            // 使用filter_complex进行视频合并，这样可以更好地处理音频衔接
             List<String> concatCommand = new ArrayList<>();
             concatCommand.add("ffmpeg");
-            concatCommand.add("-f");
-            concatCommand.add("concat");
-            concatCommand.add("-safe");
-            concatCommand.add("0");
-            concatCommand.add("-i");
-            concatCommand.add(listFile.getAbsolutePath());
-            // 添加用户指定的参数
+            
+            // 添加每个输入文件
+            for (String filePath : concatFiles) {
+                concatCommand.add("-i");
+                concatCommand.add(filePath);
+            }
+            
+            // 构建filter_complex参数
+            StringBuilder filterBuilder = new StringBuilder();
+            for (int i = 0; i < concatFiles.size(); i++) {
+                filterBuilder.append("[").append(i).append(":v][").append(i).append(":a]");
+            }
+            filterBuilder.append("concat=n=").append(concatFiles.size()).append(":v=1:a=1[v][a]");
+            
+            concatCommand.add("-filter_complex");
+            concatCommand.add(filterBuilder.toString());
+            
+            concatCommand.add("-map");
+            concatCommand.add("[v]");
+            concatCommand.add("-map");
+            concatCommand.add("[a]");
+            
+            // 添加用户指定的参数，但排除冲突参数
             String[] args = ffmpegArgs.split("\\s+");
             for (String arg : args) {
-                if (!arg.trim().isEmpty() && !arg.contains("-y")) {
+                if (!arg.trim().isEmpty() && !arg.contains("-y") 
+                    && !arg.contains("-filter_complex") && !arg.contains("-map")) {
                     concatCommand.add(arg.trim());
                 }
             }
+            
             concatCommand.add("-y");
             concatCommand.add(outputFile.getAbsolutePath());
             
