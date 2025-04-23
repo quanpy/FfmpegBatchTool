@@ -99,6 +99,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private static final String DEFAULT_INTEL_PARAMS = "-c:v h264_qsv  -b:v 8000k -crf 23 -y";
     private static final String DEFAULT_AMD_PARAMS = "-c:v h264_amf  -b:v 8000k -crf 23 -y";
     private static final String DEFAULT_UI_PARAMS = DEFAULT_INTEL_PARAMS;
+    private static final String VERSION = "2.1";
 
     // 记录类型存储解析后的坐标参数
     private record DelogoParams(int x, int y, int width, int height) {
@@ -124,7 +125,7 @@ public class FFmpegBatchProcessor extends JFrame {
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
-        super("FFmpeg多功能批处理工具 Version 2.0 ocean.quan@wiitrans.com");
+        super("FFmpeg多功能批处理工具 Version %s ocean.quan@wiitrans.com".formatted(VERSION));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(850, 650);
         setLocationRelativeTo(null);
@@ -741,7 +742,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private void updateCurrentPage(PageType pageType) {
         currentPage = pageType;
         cardLayout.show(cardPanel, pageType.name());
-        setTitle("FFmpeg多功能批处理工具 Version 2.0 - " + pageType.getTitle() + " - ocean.quan@wiitrans.com");
+        setTitle("FFmpeg多功能批处理工具 Version %s - %s - ocean.quan@wiitrans.com".formatted(VERSION, pageType.getTitle()));
 
         // 根据当前页面更新处理按钮文本
         processButton.setText("开始" + pageType.getTitle());
