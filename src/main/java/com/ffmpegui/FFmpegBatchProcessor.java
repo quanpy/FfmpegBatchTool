@@ -94,7 +94,7 @@ public class FFmpegBatchProcessor extends JFrame {
     private CardLayout cardLayout;
 
     // 默认的压缩参数
-    private static final String DEFAULT_COMPRESS_PARAMS = "-c:v libx264 -b:v 8000k -crf 23 -y";
+    private static final String DEFAULT_COMPRESS_PARAMS = "-c:v libx264 -b:v 8000k -crf 23 -c:a aac -b:a 192k -y";
     private static final String DEFAULT_NVENC_PARAMS = "-c:v h264_nvenc -profile:v high -b:v 8000k -crf 23 -y";
     private static final String DEFAULT_INTEL_PARAMS = "-c:v h264_qsv  -b:v 8000k -crf 23 -y";
     private static final String DEFAULT_AMD_PARAMS = "-c:v h264_amf  -b:v 8000k -crf 23 -y";
@@ -122,6 +122,9 @@ public class FFmpegBatchProcessor extends JFrame {
             return list;
         }
     }
+
+    // 添加新的类成员变量来存储日志滚动窗格
+    private JScrollPane logScrollPane;
 
     public FFmpegBatchProcessor() {
         // 设置窗口标题和关闭操作
@@ -318,6 +321,13 @@ public class FFmpegBatchProcessor extends JFrame {
 
             final String logText = sb.toString();
             SwingUtilities.invokeLater(() -> {
+                // 判断日志区是否已滚动到底部
+                JScrollBar verticalBar = logScrollPane.getVerticalScrollBar();
+                boolean isAtBottom = verticalBar.getValue() + verticalBar.getVisibleAmount() >= verticalBar.getMaximum() - 10;
+                
+                // 记住当前的滚动位置
+                int currentPosition = verticalBar.getValue();
+                
                 // 将文本转换为UTF-8编码处理，避免显示乱码
                 try {
                     String normalizedText = new String(logText.getBytes("UTF-8"), "UTF-8");
@@ -327,8 +337,13 @@ public class FFmpegBatchProcessor extends JFrame {
                     logArea.append(logText);
                 }
 
-                // 自动滚动到底部
-                logArea.setCaretPosition(logArea.getDocument().getLength());
+                // 仅当之前位于底部时，才自动滚动到底部
+                if (isAtBottom) {
+                    logArea.setCaretPosition(logArea.getDocument().getLength());
+                } else {
+                    // 否则保持原来的滚动位置
+                    verticalBar.setValue(currentPosition);
+                }
             });
         }
     }
@@ -433,14 +448,14 @@ public class FFmpegBatchProcessor extends JFrame {
         logLabel.setForeground(PRIMARY_COLOR);
         logLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
 
-        JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+        logScrollPane = new JScrollPane(logArea);
+        logScrollPane.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(ACCENT_COLOR, 1, true),
                 BorderFactory.createEmptyBorder(0, 0, 0, 0)
         ));
 
         logPanel.add(logLabel, BorderLayout.NORTH);
-        logPanel.add(scrollPane, BorderLayout.CENTER);
+        logPanel.add(logScrollPane, BorderLayout.CENTER);
         logPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         // 创建功能页面顶部面板（包含标签页按钮和卡片面板）
@@ -1091,7 +1106,6 @@ public class FFmpegBatchProcessor extends JFrame {
         // 临时文件路径
         String tempDir = System.getProperty("java.io.tmpdir");
         List<File> tempFiles = new ArrayList<>();
-        List<String> concatFiles = new ArrayList<>();
         String outputPrefix = "";
         
         if (doSpliceHead && doSpliceTail) {
@@ -1107,44 +1121,65 @@ public class FFmpegBatchProcessor extends JFrame {
         File outputFile = new File(outputFolder, outputFileName);
         
         try {
-            // 临时文件列表和命令
-            List<List<String>> commands = new ArrayList<>();
+            // 新方案：先准备视频部分，然后提取和准备音频部分，最后合并
+
+            // 1. 提取原始视频的完整音频
+            addLogMessage("正在提取原始视频的完整音频...");
+            File audioFile = new File(tempDir, "temp_audio_" + System.currentTimeMillis() + ".aac");
+            tempFiles.add(audioFile);
+            
+            List<String> audioCommand = new ArrayList<>();
+            audioCommand.add("ffmpeg");
+            audioCommand.add("-i");
+            audioCommand.add(originalPath);
+            audioCommand.add("-vn");  // 不要视频
+            audioCommand.add("-acodec");
+            audioCommand.add("aac");
+            audioCommand.add("-b:a");
+            audioCommand.add("192k");
+            audioCommand.add("-y");
+            audioCommand.add(audioFile.getAbsolutePath());
+            
+            executeCommand(audioCommand);
+            
+            // 2. 准备视频部分（不含音频）
+            addLogMessage("正在准备视频部分...");
+            
+            // 各部分视频临时文件
+            List<String> videoFiles = new ArrayList<>();
             
             if (doSpliceHead) {
-                // 准备片头临时文件 - 原视频的前部分
+                // 准备片头临时文件 - 原视频的前部分（仅视频）
                 File headFile = new File(tempDir, "temp_head_" + System.currentTimeMillis() + ".mp4");
                 tempFiles.add(headFile);
-                concatFiles.add(headFile.getAbsolutePath());
                 
                 List<String> headCommand = new ArrayList<>();
                 headCommand.add("ffmpeg");
                 headCommand.add("-i");
                 headCommand.add(originalPath);
+                headCommand.add("-an");  // 不要音频
                 headCommand.add("-t");
                 headCommand.add(String.format("%.2f", headDurationValue));
-                
-                // 添加用户指定的参数
-                String[] args = ffmpegArgs.split("\\s+");
-                for (String arg : args) {
-                    if (!arg.trim().isEmpty() && !arg.contains("-y")) {
-                        headCommand.add(arg.trim());
-                    }
-                }
-                
+                headCommand.add("-c:v");
+                headCommand.add("libx264");
+                headCommand.add("-crf");
+                headCommand.add("23");
                 headCommand.add("-y");
                 headCommand.add(headFile.getAbsolutePath());
-                commands.add(headCommand);
+                
+                executeCommand(headCommand);
+                videoFiles.add(headFile.getAbsolutePath());
             }
             
-            // 准备中间部分 - 无字幕视频的中间部分
+            // 准备中间部分 - 无字幕视频的中间部分（仅视频）
             File middleFile = new File(tempDir, "temp_middle_" + System.currentTimeMillis() + ".mp4");
             tempFiles.add(middleFile);
-            concatFiles.add(middleFile.getAbsolutePath());
             
             List<String> middleCommand = new ArrayList<>();
             middleCommand.add("ffmpeg");
             middleCommand.add("-i");
             middleCommand.add(noSubPath);
+            middleCommand.add("-an");  // 不要音频
             
             if (doSpliceHead) {
                 // 跳过片头部分
@@ -1159,94 +1194,104 @@ public class FFmpegBatchProcessor extends JFrame {
                 middleCommand.add(String.format("%.2f", middleDuration));
             }
             
-            // 添加用户指定的参数
-            String[] middleArgs = ffmpegArgs.split("\\s+");
-            for (String arg : middleArgs) {
-                if (!arg.trim().isEmpty() && !arg.contains("-y")) {
-                    middleCommand.add(arg.trim());
-                }
-            }
-            
+            middleCommand.add("-c:v");
+            middleCommand.add("libx264");
+            middleCommand.add("-crf");
+            middleCommand.add("23");
             middleCommand.add("-y");
             middleCommand.add(middleFile.getAbsolutePath());
-            commands.add(middleCommand);
+            
+            executeCommand(middleCommand);
+            videoFiles.add(middleFile.getAbsolutePath());
             
             if (doSpliceTail) {
-                // 准备片尾临时文件 - 原视频的后部分
+                // 准备片尾临时文件 - 原视频的后部分（仅视频）
                 File tailFile = new File(tempDir, "temp_tail_" + System.currentTimeMillis() + ".mp4");
                 tempFiles.add(tailFile);
-                concatFiles.add(tailFile.getAbsolutePath());
                 
                 List<String> tailCommand = new ArrayList<>();
                 tailCommand.add("ffmpeg");
                 tailCommand.add("-i");
                 tailCommand.add(originalPath);
+                tailCommand.add("-an");  // 不要音频
                 tailCommand.add("-ss");
                 tailCommand.add(String.format("%.2f", tailStartTime));
-                
-                // 添加用户指定的参数
-                String[] args = ffmpegArgs.split("\\s+");
-                for (String arg : args) {
-                    if (!arg.trim().isEmpty() && !arg.contains("-y")) {
-                        tailCommand.add(arg.trim());
-                    }
-                }
-                
+                tailCommand.add("-c:v");
+                tailCommand.add("libx264");
+                tailCommand.add("-crf");
+                tailCommand.add("23");
                 tailCommand.add("-y");
                 tailCommand.add(tailFile.getAbsolutePath());
-                commands.add(tailCommand);
+                
+                executeCommand(tailCommand);
+                videoFiles.add(tailFile.getAbsolutePath());
             }
             
-            // 执行所有切割命令
-            for (int i = 0; i < commands.size(); i++) {
-                List<String> cmd = commands.get(i);
-                String partName = i == 0 && doSpliceHead ? "片头" : 
-                                 (i == commands.size() - 1 && doSpliceTail ? "片尾" : "中间部分");
-                addLogMessage("正在切割" + partName + "...");
-                executeCommand(cmd);
-            }
+            // 3. 合并所有视频流，并与音频合并
+            addLogMessage("正在合并视频片段与音频...");
             
-            // 最后进行视频合并
-            addLogMessage("正在合并视频片段...");
+            // 创建一个视频片段列表文件
+            File videoListFile = new File(tempDir, "video_list_" + System.currentTimeMillis() + ".txt");
+            tempFiles.add(videoListFile);
             
-            // 使用filter_complex进行视频合并，这样可以更好地处理音频衔接
-            List<String> concatCommand = new ArrayList<>();
-            concatCommand.add("ffmpeg");
-            
-            // 添加每个输入文件
-            for (String filePath : concatFiles) {
-                concatCommand.add("-i");
-                concatCommand.add(filePath);
-            }
-            
-            // 构建filter_complex参数
-            StringBuilder filterBuilder = new StringBuilder();
-            for (int i = 0; i < concatFiles.size(); i++) {
-                filterBuilder.append("[").append(i).append(":v][").append(i).append(":a]");
-            }
-            filterBuilder.append("concat=n=").append(concatFiles.size()).append(":v=1:a=1[v][a]");
-            
-            concatCommand.add("-filter_complex");
-            concatCommand.add(filterBuilder.toString());
-            
-            concatCommand.add("-map");
-            concatCommand.add("[v]");
-            concatCommand.add("-map");
-            concatCommand.add("[a]");
-            
-            // 添加用户指定的参数，但排除冲突参数
-            String[] args = ffmpegArgs.split("\\s+");
-            for (String arg : args) {
-                if (!arg.trim().isEmpty() && !arg.contains("-y") 
-                    && !arg.contains("-filter_complex") && !arg.contains("-map")) {
-                    concatCommand.add(arg.trim());
+            try (java.io.PrintWriter writer = new java.io.PrintWriter(videoListFile)) {
+                for (String filePath : videoFiles) {
+                    writer.println("file '" + filePath.replace("\\", "\\\\") + "'");
                 }
             }
             
-            concatCommand.add("-y");
-            concatCommand.add(outputFile.getAbsolutePath());
+            // 先把所有视频合并成一个无声视频
+            File mergedVideoFile = new File(tempDir, "temp_merged_video_" + System.currentTimeMillis() + ".mp4");
+            tempFiles.add(mergedVideoFile);
             
-            executeCommand(concatCommand);
+            List<String> mergeVideoCommand = new ArrayList<>();
+            mergeVideoCommand.add("ffmpeg");
+            mergeVideoCommand.add("-f");
+            mergeVideoCommand.add("concat");
+            mergeVideoCommand.add("-safe");
+            mergeVideoCommand.add("0");
+            mergeVideoCommand.add("-i");
+            mergeVideoCommand.add(videoListFile.getAbsolutePath());
+            mergeVideoCommand.add("-c");
+            mergeVideoCommand.add("copy");
+            mergeVideoCommand.add("-y");
+            mergeVideoCommand.add(mergedVideoFile.getAbsolutePath());
+            
+            executeCommand(mergeVideoCommand);
+            
+            // 4. 最后合并视频和音频
+            List<String> finalCommand = new ArrayList<>();
+            finalCommand.add("ffmpeg");
+            finalCommand.add("-i");
+            finalCommand.add(mergedVideoFile.getAbsolutePath());
+            finalCommand.add("-i");
+            finalCommand.add(audioFile.getAbsolutePath());
+            finalCommand.add("-c:v");
+            finalCommand.add("copy");
+            finalCommand.add("-c:a");
+            finalCommand.add("aac");
+            finalCommand.add("-strict");
+            finalCommand.add("experimental");
+            finalCommand.add("-map");
+            finalCommand.add("0:v:0");
+            finalCommand.add("-map");
+            finalCommand.add("1:a:0");
+            finalCommand.add("-shortest");
+            
+//            // 添加用户自定义参数，但排除可能冲突的
+//            String[] args = ffmpegArgs.split("\\s+");
+//            for (String arg : args) {
+//                if (!arg.trim().isEmpty() && !arg.contains("-y")
+//                    && !arg.contains("-c:v") && !arg.contains("-c:a")
+//                    && !arg.contains("-map") && !arg.contains("-shortest")) {
+//                    finalCommand.add(arg.trim());
+//                }
+//            }
+            
+            finalCommand.add("-y");
+            finalCommand.add(outputFile.getAbsolutePath());
+            
+            executeCommand(finalCommand);
             
             addLogMessage("成功处理文件: " + fileName);
             
